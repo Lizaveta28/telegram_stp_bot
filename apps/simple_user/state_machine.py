@@ -2,8 +2,9 @@ from transitions import Machine
 from config import PAGE_SIZE, IS_PROD
 from models.models import User, Section, Type, Request, Chat, RequestState
 import ujson
-from apps.simple_user.utils import get_breadcrumb
+from apps.simple_user.utils import get_breadcrumb, emoji_pool
 import datetime
+import random
 from state_machines.utils import *
 
 
@@ -98,6 +99,7 @@ class UserStateMachine(object):
         user.save()
         keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, buttons=[["Создать заявку"],
                                                                                 ["Мои заявки"]])
+        self.tb.send_message(self.chat, ''.join([random.choice(emoji_pool) for x in range(3)]))
         self.tb.send_message(self.chat, "Для продолжения выберете одну из команд под полем ввода.",
                              reply_markup=keyboard)
 
