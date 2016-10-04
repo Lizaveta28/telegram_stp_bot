@@ -1,0 +1,11 @@
+idna==2.1
+peewee==2.8.3
+psycopg2==2.6.2
+pyasn1==0.1.9
+pycparser==2.14
+PyMySQL==0.7.9
+pyTelegramBotAPI==2.1.7
+requests==2.11.1
+six==1.10.0
+transitions==0.4.1
+ujson==1.35
