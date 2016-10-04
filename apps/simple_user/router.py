@@ -1,10 +1,13 @@
 from apps.simple_user.functions import initial, show_sections_from_text, to_main_menu, show_sections_inline, \
-    show_types_inline, comment_add, save_request, type_select_dialog, comment_add_dialog, show_my_requests
+    show_types_inline, comment_add, save_request, type_select_dialog, comment_add_dialog, show_my_requests, \
+    print_request
 
 
 class Router:
     @staticmethod
     def router_text(message, user, tb):
+        if message.text.startswith('/r'):
+            print_request(message, user, tb)
         if user.state == 'initial':
             initial(message, user, tb)
         elif user.state == 'message_enter':

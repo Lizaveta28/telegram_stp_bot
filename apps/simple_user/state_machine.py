@@ -277,11 +277,21 @@ class UserStateMachine(object):
         keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, [['В главное меню']])
         self.tb.send_message(self.chat, "Список заявок:", reply_markup=keyboard)
         for request in requests:
-            self.tb.send_message(self.chat, "Заявка /%s:\nНомер: %s\nКатегория: %s\nТип: %s\nСтатус: %s" % (
-                str(request.id) + ' ' + request.unicode_icons,
-                request.id,
-                get_breadcrumb(request.type.section.id, Section, 'parent_section'),
-                get_breadcrumb(request.type.id, Type, 'parent_type'),
-                request.state.name
-            ))
+            self.print_request(request)
 
+    def show_request(self, request_id, curr_user):
+        r = Request.get(id=request_id)
+        if r.user == curr_user:
+            self.print_request(r)
+        else:
+            self.tb.send_message(self.chat, "Это не ваша заявка!")
+
+    def print_request(self, request):
+        self.tb.send_message(self.chat, "Заявка /r%s:\nНомер: %s\nКатегория: %s\nТип: %s\nКомментарий: %s\nСтатус: %s" % (
+            str(request.id) + ' ' + request.unicode_icons,
+            request.id,
+            get_breadcrumb(request.type.section.id, Section, 'parent_section'),
+            get_breadcrumb(request.type.id, Type, 'parent_type'),
+            request.text,
+            request.state.name
+        ))

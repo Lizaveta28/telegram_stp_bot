@@ -112,3 +112,8 @@ def type_select_dialog(call, user, tb, sm):
 @is_user_active()
 def show_my_requests(message, user, tb, sm):
     sm.show_requests(user_id=user)
+
+
+@is_user_active()
+def print_request(message, user, tb, sm):
+    sm.show_request(message.text[2:], user)
