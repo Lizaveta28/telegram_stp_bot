@@ -99,7 +99,6 @@ class UserStateMachine(object):
         user.save()
         keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, buttons=[["Создать заявку"],
                                                                                 ["Мои заявки"]])
-        self.tb.send_message(self.chat, ''.join([random.choice(emoji_pool) for x in range(3)]))
         self.tb.send_message(self.chat, "Для продолжения выберете одну из команд под полем ввода.",
                              reply_markup=keyboard)
 
@@ -131,7 +130,7 @@ class UserStateMachine(object):
         for section in sections:
             if not IS_PROD:
                 buttons.append(
-                    [get_button_inline("%s %s" % (section.name, section.id), "section_select %s" % section.id)])
+                    [get_button_inline(section.name, "section_select %s" % section.id)])
             else:
                 buttons.append(
                     [get_button_inline(section.name, "section_select %s" % section.id)])
@@ -267,6 +266,7 @@ class UserStateMachine(object):
         request.created_at = datetime.datetime.now()
         request.state = RequestState.get(name='создана')
         request.user = user
+        request.unicode_icons = ''.join([random.choice(emoji_pool) for x in range(3)])
         request.save()
         self.tb.edit_message_text(chat_id=self.chat, message_id=message_id, text="Заявка успешно создана.")
         self.tb.send_message(self.chat,
@@ -278,7 +278,7 @@ class UserStateMachine(object):
         self.tb.send_message(self.chat, "Список заявок:", reply_markup=keyboard)
         for request in requests:
             self.tb.send_message(self.chat, "Заявка /%s:\nНомер: %s\nКатегория: %s\nТип: %s\nСтатус: %s" % (
-                request.id,
+                str(request.id) + ' ' + request.unicode_icons,
                 request.id,
                 get_breadcrumb(request.type.section.id, Section, 'parent_section'),
                 get_breadcrumb(request.type.id, Type, 'parent_type'),

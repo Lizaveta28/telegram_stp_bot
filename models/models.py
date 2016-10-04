@@ -3,7 +3,7 @@ from playhouse.postgres_ext import JSONField, PostgresqlExtDatabase
 from playhouse.fields import ManyToManyField
 import datetime
 
-db = PostgresqlExtDatabase('sdvor_stp', user='bot', password='1111', host='localhost')
+db = PostgresqlExtDatabase('sdvor_stp', user='bot', password='1111', host='10.0.16.101')
 
 
 class BaseModel(Model):
@@ -50,6 +50,7 @@ class Request(BaseModel):
     state = ForeignKeyField(RequestState)
     chats = ManyToManyField(Chat)
     user = ForeignKeyField(User)
+    unicode_icons = CharField(max_length=4)
     created_at = DateTimeField(default=datetime.datetime.now())
 
 
