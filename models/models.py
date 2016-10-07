@@ -2,8 +2,9 @@ from peewee import *
 from playhouse.postgres_ext import JSONField, PostgresqlExtDatabase
 from playhouse.fields import ManyToManyField
 import datetime
+from config import host, db, user, password
 
-db = PostgresqlExtDatabase('sdvor_stp', user='bot', password='1111', host='10.0.16.101')
+db = PostgresqlExtDatabase(db, user=user, password=password, host=host)
 
 
 class BaseModel(Model):
