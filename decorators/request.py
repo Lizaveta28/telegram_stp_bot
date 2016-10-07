@@ -7,9 +7,18 @@ def request_process(**kwargs):
         @functools.wraps(tele_func)
         def arguments_wrapper(*args, **kwargs):
             try:
+                changed = False
                 user = User.get(telegram_user_id=args[0].from_user.id)
                 if user.username != args[0].from_user.username:
                     user.username = args[0].from_user.username
+                    changed = True
+                if user.first_name != args[0].from_user.first_name:
+                    user.first_name = args[0].from_user.first_name
+                    changed = True
+                if user.surname != args[0].from_user.last_name:
+                    user.surname = args[0].from_user.last_name
+                    changed = True
+                if changed:
                     user.save()
             except Exception as e:
                 user = User.create(username=args[0].from_user.username,

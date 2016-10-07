@@ -99,7 +99,7 @@ class UserStateMachine(object):
         user.save()
         keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, buttons=[["Создать заявку"],
                                                                                 ["Мои заявки"]])
-        self.tb.send_message(self.chat, "Для продолжения выберете одну из команд под полем ввода.",
+        self.tb.send_message(self.chat, "Для продолжения выберите одну из команд под полем ввода.",
                              reply_markup=keyboard)
 
     def _save_state(self, event):
