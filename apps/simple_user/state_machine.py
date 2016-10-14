@@ -263,6 +263,7 @@ class UserStateMachine(object):
         request = Request()
         request.text = user.additional_data.get('comment', '')
         request.type = Type.get(id=user.additional_data.get('type'))
+        request.section = request.type.section
         request.created_at = datetime.datetime.now()
         request.state = RequestState.get(name='создана')
         request.user = user

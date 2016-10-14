@@ -22,7 +22,7 @@ class User(BaseModel):
     state = TextField(default='initial')
     phone = TextField(null=True)
     is_active = BooleanField(default=True)
-
+    has_messages_after_notification = BooleanField(default=False)
 
 class Section(BaseModel):
     name = TextField()
@@ -43,6 +43,7 @@ class RequestState(BaseModel):
 
 
 class Request(BaseModel):
+    section = ForeignKeyField(Section)
     type = ForeignKeyField(Type)
     text = TextField(null=True)
     state = ForeignKeyField(RequestState)
@@ -52,8 +53,8 @@ class Request(BaseModel):
 
 
 class Chat(BaseModel):
-    user_from = IntegerField()
-    user_to = IntegerField()
+    user_from = IntegerField(null=True) # client
+    user_to = IntegerField(null=True) # stp
     request = ForeignKeyField(Request)
 
 
@@ -61,12 +62,13 @@ class Stp(BaseModel):
     staff_id = IntegerField(null=True)
     user = ForeignKeyField(User)
     is_active = BooleanField(default=True)
-    sections = ForeignKeyField(Section)
     # current_requests = ManyToManyField(Request, related_name='current_requests')
 
 
 class Message(BaseModel):
-    user = ForeignKeyField(User)
+    is_read = BooleanField(default=False)
+    to_user = ForeignKeyField(User, related_name="msg_to_user")
+    from_user = ForeignKeyField(User, related_name="msg_from_user")
     data = BlobField(null=True)
     text = TextField(null=True)
     chat = ForeignKeyField(Chat)
@@ -83,3 +85,11 @@ class StpRequest(BaseModel):
     request = ForeignKeyField(Request)
     stp = ForeignKeyField(Stp)
     comment = ForeignKeyField(RequestComment, null=True)
+    add_text = TextField(null=True)
+    is_important = BooleanField(default=False)
+
+
+class StpSection(BaseModel):
+    stp = ForeignKeyField(Stp)
+    section = ForeignKeyField(Section)
+    importance = IntegerField(default=1) # more is more prior
