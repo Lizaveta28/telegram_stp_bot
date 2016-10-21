@@ -9,6 +9,9 @@ def request_process(**kwargs):
             try:
                 changed = False
                 user = User.get(telegram_user_id=args[0].from_user.id)
+                if not user.has_messages_after_notification:
+                    user.has_messages_after_notification = True
+                    changed = True
                 if user.username != args[0].from_user.username:
                     user.username = args[0].from_user.username
                     changed = True

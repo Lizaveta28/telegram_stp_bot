@@ -14,7 +14,8 @@ def to_main_menu(message, user, tb, sm):
 
 @is_stp_active()
 def show_requests_list(message, user, tb, sm):
-    sm.requests_show(user=user)
+    custom_data = {'user': user, 'page': 0}
+    sm._show_requests(None, custom_data={'user': user, 'page': 0})
 
 
 @is_stp_active()
@@ -37,3 +38,31 @@ def start_chat(call, user, tb, sm):
 @is_stp_active()
 def send_to_chat_text(message, user, tb, sm):
     sm.send_to_chat_text(user, message)
+
+
+@is_stp_active()
+def take_request(call, user, tb, sm):
+    data = call.data.split(' ')
+    sm.take_request(request=int(data[1]), user=user, call=call)
+
+
+@is_stp_active()
+def drop_request(call, user, tb, sm):
+    data = call.data.split(' ')
+    sm.drop_request(user=user, request=int(data[1]), call=call)
+
+
+@is_stp_active()
+def drop_request_choice(call, user, tb, decision, sm):
+    data = call.data.split(' ')
+    sm.drop_request_finally(call.message.message_id, int(data[1]), user, decision)
+    sm.main_menu()
+
+@is_stp_active()
+def drop_request_comment(call, user, tb, sm):
+    sm.drop_request_comment(user=user, request_id=call.data.split(' ')[1])
+
+@is_stp_active()
+def drop_request_with_comment(message, user, tb, sm):
+    sm.drop_request_finally(message, None, user, 1, comment=message.text)
+    sm.main_menu()

@@ -54,8 +54,9 @@ class Request(BaseModel):
 
 class Chat(BaseModel):
     user_from = IntegerField(null=True) # client
-    user_to = IntegerField(null=True) # stp
+    user_to = IntegerField(null=True) # stp, current active stp
     request = ForeignKeyField(Request)
+    is_active = BooleanField(default=True)
 
 
 class Stp(BaseModel):
@@ -65,7 +66,7 @@ class Stp(BaseModel):
     # current_requests = ManyToManyField(Request, related_name='current_requests')
 
 
-class Message(BaseModel):
+class Message(BaseModel): # For show messages between stps and user
     is_read = BooleanField(default=False)
     to_user = ForeignKeyField(User, related_name="msg_to_user")
     from_user = ForeignKeyField(User, related_name="msg_from_user")
@@ -86,6 +87,7 @@ class StpRequest(BaseModel):
     stp = ForeignKeyField(Stp)
     comment = ForeignKeyField(RequestComment, null=True)
     add_text = TextField(null=True)
+    is_dissmised = BooleanField(default=False)
     is_important = BooleanField(default=False)
 
 

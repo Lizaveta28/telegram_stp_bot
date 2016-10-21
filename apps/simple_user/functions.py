@@ -117,3 +117,14 @@ def show_my_requests(message, user, tb, sm):
 @is_user_active()
 def print_request(message, user, tb, sm):
     sm.show_request(message.text[2:], user)
+
+
+@is_user_active()
+def send_to_chat(message, user, tb, sm):
+    sm.send_to_chat(message.text, user)
+
+
+@is_user_active()
+def select_chat(call, user, tb, sm):
+    chat = call.data.split(' ')[1]
+    sm.select_chat(user=user, chat=chat)

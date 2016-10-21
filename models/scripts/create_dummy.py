@@ -16,3 +16,9 @@ def create_section_struct():
 def create_request_stage():
     stage = RequestState(name="создана")
     stage.save()
+    stage = RequestState(name="отложена")
+    stage.save()
+    stage = RequestState(name="результат не принят")
+    stage.save()
+    stage = RequestState(name="завершена")
+    stage.save()

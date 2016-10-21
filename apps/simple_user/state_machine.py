@@ -1,6 +1,6 @@
 from transitions import Machine
 from config import PAGE_SIZE, IS_PROD
-from models.models import User, Section, Type, Request, Chat, RequestState
+from models.models import User, Section, Type, Request, Chat, RequestState, Message
 import ujson
 from apps.simple_user.utils import get_breadcrumb, emoji_pool
 import datetime
@@ -73,12 +73,21 @@ class UserStateMachine(object):
             'conditions': [],
             'before': ['_send_request'],
             'after': ['_save_state'],
+        },
+        {
+            'trigger': 'select_chat',
+            'source': ('*'),
+            'dest': 'chatting',
+            'prepare': [],
+            'conditions': [],
+            'before': ['_select_chat'],
+            'after': ['_save_state'],
         }
 
     ]
     states = ['initial', 'greeting', 'main_menu', 'section_select', 'type_select', 'message_enter', 'message_entered',
               'conversation', 'request_sent', 'request_confirm',
-              'request_ended', 'requests_show']
+              'request_ended', 'requests_show', 'chatting']
 
     def __init__(self, data):
         self.machine = Machine(model=self, transitions=self.mach_transitions, states=self.states,
@@ -150,7 +159,8 @@ class UserStateMachine(object):
             if sections:
                 self.tb.send_message(self.chat, "Доступные категории:", reply_markup=keyboard)
             else:
-                self.tb.send_message(self.chat, "Доступные категории:\nКажется у данной категории нет доступных подкатегорий")
+                self.tb.send_message(self.chat,
+                                     "Доступные категории:\nКажется у данной категории нет доступных подкатегорий")
         else:
             if sections:
                 self.tb.edit_message_reply_markup(self.chat, message_id=reply_message, reply_markup=keyboard)
@@ -208,7 +218,8 @@ class UserStateMachine(object):
             if av_types:
                 self.tb.send_message(self.chat, "Доступные типы вопросов:", reply_markup=keyboard)
             else:
-                self.tb.send_message(self.chat, "Доступные типы вопросов:\nКажется у данного типа или категории нет доступных типов обращений")
+                self.tb.send_message(self.chat,
+                                     "Доступные типы вопросов:\nКажется у данного типа или категории нет доступных типов обращений")
         else:
             self.tb.edit_message_reply_markup(self.chat, message_id=reply_message, reply_markup=keyboard)
 
@@ -274,7 +285,7 @@ class UserStateMachine(object):
                              "Сейчас вы будете перенаправлены в главное меню.\nВ ближайшее время с вами свяжется оператор прямо в этом чате")
 
     def show_requests(self, user_id):
-        requests = Request.select().where(Request.user==user_id)
+        requests = Request.select().where(Request.user == user_id)
         keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, [['В главное меню']])
         self.tb.send_message(self.chat, "Список заявок:", reply_markup=keyboard)
         for request in requests:
@@ -288,11 +299,43 @@ class UserStateMachine(object):
             self.tb.send_message(self.chat, "Это не ваша заявка!")
 
     def print_request(self, request):
-        self.tb.send_message(self.chat, "Заявка /r%s:\nНомер: %s\nКатегория: %s\nТип: %s\nКомментарий: %s\nСтатус: %s" % (
-            str(request.id) + ' ' + request.unicode_icons,
-            request.id,
-            get_breadcrumb(request.type.section.id, Section, 'parent_section'),
-            get_breadcrumb(request.type.id, Type, 'parent_type'),
-            request.text,
-            request.state.name
-        ))
+        chat, create = Chat.get_or_create(request=request, user_from=self.user)
+        if create:
+            chat.user_from = self.user
+            chat.save()
+        self.tb.send_message(self.chat,
+                             "Заявка /r%s:\nНомер: %s\nКатегория: %s\nТип: %s\nКомментарий: %s\nСтатус: %s" % (
+                                 str(request.id) + ' ' + request.unicode_icons,
+                                 request.id,
+                                 get_breadcrumb(request.type.section.id, Section, 'parent_section'),
+                                 get_breadcrumb(request.type.id, Type, 'parent_type'),
+                                 request.text,
+                                 request.state.name
+                             ), reply_markup=generate_custom_keyboard(types.InlineKeyboardMarkup, [
+                [get_button_inline("Перейти в чат", 'start_chat %s' % chat.id),
+                 get_button_inline("История сообщений", 'show_chat_history %s' % chat.id)],
+                [get_button_inline("Изменить статус заявки", "change_request_status %s" % request.id)]]))
+
+    def _select_chat(self, event):
+        user = event.kwargs.get('user')
+        chat = Chat.get(id=event.kwargs.get('chat'))
+        user.additional_data['chat'] = chat.id
+        user.save()
+        request = Request.get(id=chat.request)
+        self.tb.send_message(self.chat,
+                             "Вы были переключены в чат заявки /r%s %s" % (request.id, request.unicode_icons),
+                             reply_markup=generate_custom_keyboard(types.ReplyKeyboardMarkup,
+                                                                   [[get_button("Отключиться от чата")]]))
+
+    def send_to_chat(self, text, user):
+        try:
+            chat = Chat.get(id=user.additional_data['chat'])
+            stp = User.get(id=chat.user_to)
+            m = Message(from_user=user, to_user=chat.user_to, text=text, chat=chat)
+            if 'chat' in stp.additional_data and stp.additional_data['chat'] == chat.id:
+                m.is_read = True
+
+                self.tb.send_message(stp.telegram_chat_id, m.text)
+            m.save()
+        except:
+            pass

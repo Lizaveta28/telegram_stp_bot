@@ -1,6 +1,6 @@
 from apps.simple_user.functions import initial, show_sections_from_text, to_main_menu, show_sections_inline, \
     show_types_inline, comment_add, save_request, type_select_dialog, comment_add_dialog, show_my_requests, \
-    print_request
+    print_request, send_to_chat, select_chat
 
 
 class Router:
@@ -8,8 +8,12 @@ class Router:
     def router_text(message, user, tb):
         if message.text.startswith('/r'):
             print_request(message, user, tb)
-        if user.state == 'initial':
+        elif user.state == 'initial':
             initial(message, user, tb)
+        elif message.text == 'Отключиться от чата':
+            to_main_menu(message, user, tb)
+        elif user.state == 'chatting':
+            send_to_chat(message, user, tb)
         elif user.state == 'message_enter':
             comment_add(message, user, tb)
         elif message.text == 'Создать заявку':
@@ -21,6 +25,10 @@ class Router:
 
     @staticmethod
     def route_inline(call, user, tb):
+        if call.data.startswith('start_chat'):
+            select_chat(call, user, tb)
+        if call.data.startswith('show_requests'):
+            pass
         if user.state == 'section_select':
             if call.data == 'section_change':
                 show_sections_from_text(call, user, tb)
