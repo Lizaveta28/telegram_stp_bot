@@ -120,7 +120,7 @@ class StpStateMachine(object):
             buttons = self.get_request_control_buttons(stp, requests[i].id)
             if req_len == REQUEST_PAGE_SIZE + 1 and req_len == i + 1:
                 buttons.append([get_button_inline(text="Показать еще", data="stp_request_show %s" % (page + 1))])
-            self.print_request(requests[i], keyboard=generate_custom_keyboard(types.InlineKeyboardMarkup, buttons))
+            self.print_request(requests[i], stp=stp, keyboard=generate_custom_keyboard(types.InlineKeyboardMarkup, buttons))
 
     def get_request_control_buttons(self, stp, request_id):
         buttons = []
@@ -136,21 +136,22 @@ class StpStateMachine(object):
                             ])
         return buttons
 
-    def print_request(self, request, keyboard, reply=None):
+    def print_request(self, request, keyboard, stp, reply=None):
         self.tb.send_message(self.chat,
                              "Заявка /r%s:\nНомер: %s\nНовых сообщений: <b>%s</b>\nКатегория: %s\nТип: %s\nКомментарий: %s\nСтатус: %s" % (
                                  str(request.id) + ' ' + request.unicode_icons,
                                  request.id,
-                                 self.count_request_messages(request.id),
+                                 self.count_request_messages(request.id, stp),
                                  get_breadcrumb(request.type.section.id, Section, 'parent_section'),
                                  get_breadcrumb(request.type.id, Type, 'parent_type'),
                                  request.text,
                                  request.state.name
                              ), reply_markup=keyboard, parse_mode='HTML')
 
-    def count_request_messages(self, id):
+    def count_request_messages(self, id, stp):
         chats = Chat.select().where(Chat.request == id)
-        return Message.select().where(Message.chat << chats and Message.is_read==False).count()
+        return Message.select().where(Message.chat << chats).where(Message.is_read == False).where(
+            Message.to_user == stp.id).count()
 
     def show_request(self, request_id, curr_user, reply=None):
         r = Request.get(id=request_id)
@@ -161,14 +162,16 @@ class StpStateMachine(object):
             Request.section << stp_sections).exists()
         if is_suitable:
             buttons = self.get_request_control_buttons(stp, request_id)
-        self.print_request(r, keyboard=generate_custom_keyboard(types.InlineKeyboardMarkup, buttons))
+        self.print_request(r, keyboard=generate_custom_keyboard(types.InlineKeyboardMarkup, buttons), stp=stp)
 
     def _set_chat(self, event):
         request = Request.get(id=event.kwargs.get('request'))
         user = event.kwargs.get("user")
         stp = Stp.get(user=user)
         stp_request = StpRequest.get_or_create(request=request, stp=stp)
-        chat = Chat.get_or_create(request=request, user_from=request.user, user_to=stp.user)[0]
+        chat = Chat.get_or_create(request=request, user_to=None)[0]
+        chat.user_to = stp.id
+        chat.save()
         user.additional_data['chat'] = chat.id
         user.save()
         keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, [[get_button("Отключиться от чата")]])
@@ -176,6 +179,12 @@ class StpStateMachine(object):
                              "Вы переключились в чат заявки /r%s %s\n, имя клиента: %s\nФамилия клиента: %s\n" % (
                                  request.id, request.unicode_icons, request.user.first_name, request.user.surname),
                              reply_markup=keyboard)
+        chats = Chat.select().where(Chat.request == request.id)
+        for message in Message.select().where(Message.chat << chats).where(Message.is_read == False).where(Message.to_user==stp.id):
+            message.is_read = True
+            message.save()
+            self.tb.send_message(self.chat, message.text)
+
 
     def send_to_chat_text(self, stp_user, message):
         chat = Chat.get(id=stp_user.additional_data['chat'])
@@ -183,8 +192,7 @@ class StpStateMachine(object):
         request = Request.get(id=chat.request)
         if 'chat' in user.additional_data and chat.id == user.additional_data['chat']:
             Message(is_read=True, from_user=stp_user, to_user=user, text=message.text, chat=chat).save()
-            self.tb.send_message(user.telegram_chat_id, "/r%s %s\n%s" % (request.id, request.unicode_icons,
-                                                                         message.text))
+            self.tb.send_message(user.telegram_chat_id, "%s" % message.text)
         else:
             Message(is_read=False, from_user=stp_user, to_user=user, text=message.text, chat=chat).save()
 

@@ -304,9 +304,10 @@ class UserStateMachine(object):
             chat.user_from = self.user
             chat.save()
         self.tb.send_message(self.chat,
-                             "Заявка /r%s:\nНомер: %s\nКатегория: %s\nТип: %s\nКомментарий: %s\nСтатус: %s" % (
+                             "Заявка /r%s:\nНомер: %s\nНовых сообщений: <b>%s</b>\nКатегория: %s\nТип: %s\nКомментарий: %s\nСтатус: %s" % (
                                  str(request.id) + ' ' + request.unicode_icons,
                                  request.id,
+                                 self.count_request_messages(request.id, User.get(id=request.user)),
                                  get_breadcrumb(request.type.section.id, Section, 'parent_section'),
                                  get_breadcrumb(request.type.id, Type, 'parent_type'),
                                  request.text,
@@ -314,7 +315,13 @@ class UserStateMachine(object):
                              ), reply_markup=generate_custom_keyboard(types.InlineKeyboardMarkup, [
                 [get_button_inline("Перейти в чат", 'start_chat %s' % chat.id),
                  get_button_inline("История сообщений", 'show_chat_history %s' % chat.id)],
-                [get_button_inline("Изменить статус заявки", "change_request_status %s" % request.id)]]))
+                [get_button_inline("Изменить статус заявки", "change_request_status %s" % request.id)]]),
+                             parse_mode='HTML')
+
+    def count_request_messages(self, id, stp):
+        chats = Chat.select().where(Chat.request == id)
+        return Message.select().where(Message.chat << chats).where(Message.is_read == False).where(
+            Message.to_user == stp.id).count()
 
     def _select_chat(self, event):
         user = event.kwargs.get('user')
@@ -330,12 +337,15 @@ class UserStateMachine(object):
     def send_to_chat(self, text, user):
         try:
             chat = Chat.get(id=user.additional_data['chat'])
-            stp = User.get(id=chat.user_to)
-            m = Message(from_user=user, to_user=chat.user_to, text=text, chat=chat)
-            if 'chat' in stp.additional_data and stp.additional_data['chat'] == chat.id:
-                m.is_read = True
+            if chat.user_to is not None:
+                stp = User.get(id=chat.user_to)
+                m = Message(from_user=user, to_user=chat.user_to, text=text, chat=chat)
+                if 'chat' in stp.additional_data and stp.additional_data['chat'] == chat.id:
+                    m.is_read = True
 
-                self.tb.send_message(stp.telegram_chat_id, m.text)
+                    self.tb.send_message(stp.telegram_chat_id, m.text)
+            else:
+                m = Message(from_user=user, to_user=None, text=text, chat=chat)
             m.save()
         except:
             pass

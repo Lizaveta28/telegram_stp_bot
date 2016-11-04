@@ -68,8 +68,8 @@ class Stp(BaseModel):
 
 class Message(BaseModel): # For show messages between stps and user
     is_read = BooleanField(default=False)
-    to_user = ForeignKeyField(User, related_name="msg_to_user")
-    from_user = ForeignKeyField(User, related_name="msg_from_user")
+    to_user = ForeignKeyField(User, related_name="msg_to_user", null=True)
+    from_user = ForeignKeyField(User, related_name="msg_from_user", null=True)
     data = BlobField(null=True)
     text = TextField(null=True)
     chat = ForeignKeyField(Chat)
