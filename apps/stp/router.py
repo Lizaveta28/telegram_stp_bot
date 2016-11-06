@@ -1,6 +1,6 @@
 from apps.stp.functions import initial, to_main_menu, show_requests_list, show_requests_list_next, \
     print_request, start_chat, send_to_chat_text, take_request, drop_request, drop_request_choice, \
-    drop_request_comment, drop_request_with_comment
+    drop_request_comment, drop_request_with_comment, show_active_requests
 
 
 class Router:
@@ -14,6 +14,8 @@ class Router:
             drop_request_with_comment(message, user, tb)
         elif message.text == "Список запросов":
             show_requests_list(message, user, tb)
+        elif message.text == "Мои активные запросы":
+            show_active_requests(message, user, tb)
         elif message.text.startswith('/r'):
             print_request(message, user, tb)
         elif message.text == "Отключиться от чата":

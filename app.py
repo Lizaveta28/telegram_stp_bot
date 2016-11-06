@@ -22,6 +22,5 @@ def query_text(query, user):
 @request_process()
 def add_user_by_contact(message, user):
     pass
-
 if __name__ == '__main__':
     tb.polling(none_stop=True)

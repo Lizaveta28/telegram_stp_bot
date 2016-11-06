@@ -1,6 +1,6 @@
 from transitions import Machine
-from config import PAGE_SIZE, IS_PROD
-from models.models import User, Section, Type, Request, Chat, RequestState, Message
+from config import PAGE_SIZE, IS_PROD, CHAT_PAGE_SIZE
+from models.models import User, Section, Type, Request, Message, Stp
 import ujson
 from apps.simple_user.utils import get_breadcrumb, emoji_pool
 import datetime
@@ -79,9 +79,16 @@ class UserStateMachine(object):
             'source': ('*'),
             'dest': 'chatting',
             'prepare': [],
-            'conditions': [],
+            'conditions': ['_request_active'],
             'before': ['_select_chat'],
             'after': ['_save_state'],
+        },
+        {
+            'trigger': 'end_request',
+            'source': ('chatting',),
+            'dest': 'main_menu',
+            'before': ['_end_request'],
+            'after': ['_save_state']
         }
 
     ]
@@ -101,6 +108,15 @@ class UserStateMachine(object):
 
     def _greet(self, event):
         self.tb.send_message(self.chat, 'Добро пожаловать, Вас приветствует служба поддержки "Строительный двор".')
+
+    def _request_active(self, event):
+        r = Request.get(id=event.kwargs.get('chat'))
+        message = message = event.kwargs.get('message')
+        if r.is_finished:
+            self.tb.edit_message_text(chat_id=self.chat, text="<code>Данная заявка уже решена.</code>", message_id=message, parse_mode='HTML')
+            return False
+        else:
+            return True
 
     def _main_menu(self, event):
         user = User.get(id=self.user)
@@ -276,7 +292,6 @@ class UserStateMachine(object):
         request.type = Type.get(id=user.additional_data.get('type'))
         request.section = request.type.section
         request.created_at = datetime.datetime.now()
-        request.state = RequestState.get(name='создана')
         request.user = user
         request.unicode_icons = ''.join([random.choice(emoji_pool) for x in range(3)])
         request.save()
@@ -285,9 +300,11 @@ class UserStateMachine(object):
                              "Сейчас вы будете перенаправлены в главное меню.\nВ ближайшее время с вами свяжется оператор прямо в этом чате")
 
     def show_requests(self, user_id):
-        requests = Request.select().where(Request.user == user_id)
+        requests = Request.select().where(Request.user == user_id).where(Request.is_finished == False)
         keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, [['В главное меню']])
         self.tb.send_message(self.chat, "Список заявок:", reply_markup=keyboard)
+        if not requests:
+            self.tb.send_message(self.chat, "Нету активных заявок.")
         for request in requests:
             self.print_request(request)
 
@@ -299,10 +316,12 @@ class UserStateMachine(object):
             self.tb.send_message(self.chat, "Это не ваша заявка!")
 
     def print_request(self, request):
-        chat, create = Chat.get_or_create(request=request, user_from=self.user)
-        if create:
-            chat.user_from = self.user
-            chat.save()
+        if not request.is_finished:
+            keyboard = generate_custom_keyboard(types.InlineKeyboardMarkup, [
+                    [get_button_inline("Перейти в чат", 'start_chat %s' % request.id)],
+                    [get_button_inline("Заявка решена", "change_request_status %s" % request.id)]])
+        else:
+            keyboard = None
         self.tb.send_message(self.chat,
                              "Заявка /r%s:\nНомер: %s\nНовых сообщений: <b>%s</b>\nКатегория: %s\nТип: %s\nКомментарий: %s\nСтатус: %s" % (
                                  str(request.id) + ' ' + request.unicode_icons,
@@ -311,41 +330,105 @@ class UserStateMachine(object):
                                  get_breadcrumb(request.type.section.id, Section, 'parent_section'),
                                  get_breadcrumb(request.type.id, Type, 'parent_type'),
                                  request.text,
-                                 request.state.name
-                             ), reply_markup=generate_custom_keyboard(types.InlineKeyboardMarkup, [
-                [get_button_inline("Перейти в чат", 'start_chat %s' % chat.id),
-                 get_button_inline("История сообщений", 'show_chat_history %s' % chat.id)],
-                [get_button_inline("Изменить статус заявки", "change_request_status %s" % request.id)]]),
+                                 "Завершена" if request.is_finished else "Не завершена"
+                             ), reply_markup=keyboard,
                              parse_mode='HTML')
 
-    def count_request_messages(self, id, stp):
-        chats = Chat.select().where(Chat.request == id)
-        return Message.select().where(Message.chat << chats).where(Message.is_read == False).where(
-            Message.to_user == stp.id).count()
+    def count_request_messages(self, id, user):
+        return Message.select().where(Message.request == id).where(Message.is_read == False).where(
+            Message.to_user == user.id).count()
 
     def _select_chat(self, event):
         user = event.kwargs.get('user')
-        chat = Chat.get(id=event.kwargs.get('chat'))
-        user.additional_data['chat'] = chat.id
+        message = event.kwargs.get('message')
+        self.tb.edit_message_text(chat_id=self.chat, message_id=message, text="Вы выбрали данную заявку.")
+        r = Request.get(id=event.kwargs.get('chat'))
+        user.additional_data['chat'] = r.id
         user.save()
-        request = Request.get(id=chat.request)
         self.tb.send_message(self.chat,
-                             "Вы были переключены в чат заявки /r%s %s" % (request.id, request.unicode_icons),
+                             "Вы были переключены в чат заявки /r%s %s" % (r.id, r.unicode_icons),
                              reply_markup=generate_custom_keyboard(types.ReplyKeyboardMarkup,
-                                                                   [[get_button("Отключиться от чата")]]))
+                                                                   [[get_button("Показать историю сообщений")],
+                                                                    [get_button("Заявка решена")],
+                                                                    [get_button("Отключиться от чата")]]))
+        self._show_unread_messages(r)
+
+    def _show_unread_messages(self, request):
+        self.tb.send_message(self.chat, "<code>Пропущенные сообщения:</code>", parse_mode='HTML')
+        messages = Message.select().where(Message.request == request.id).where(
+            Message.to_user == request.user).where(Message.is_read == False).order_by(Message.id)
+        for message in messages:
+            message.is_read = True
+            message.save()
+            self.tb.send_message(self.chat, message.text)
+        self.tb.send_message(self.chat, "<code>Конец пропущенных сообщений</code>", parse_mode='HTML')
 
     def send_to_chat(self, text, user):
         try:
-            chat = Chat.get(id=user.additional_data['chat'])
-            if chat.user_to is not None:
-                stp = User.get(id=chat.user_to)
-                m = Message(from_user=user, to_user=chat.user_to, text=text, chat=chat)
-                if 'chat' in stp.additional_data and stp.additional_data['chat'] == chat.id:
+            r = Request.get(id=user.additional_data['chat'])
+            if r.stp is not None:
+                stp = User.get(id=Stp.get(id=r.stp).user)
+                m = Message(from_user=user, to_user=stp.id, text=text, request=r)
+                if 'chat' in stp.additional_data and stp.additional_data['chat'] == r.id:
                     m.is_read = True
 
                     self.tb.send_message(stp.telegram_chat_id, m.text)
             else:
-                m = Message(from_user=user, to_user=None, text=text, chat=chat)
+                m = Message(from_user=user, to_user=None, text=text, request=r)
             m.save()
-        except:
+        except Exception as e:
             pass
+
+    def _show_request_history(self, request_id, page=0):
+        r = Request.get(id=request_id)
+        messages = Message.select().where(Message.request == request_id).offset(page * CHAT_PAGE_SIZE).limit(
+            CHAT_PAGE_SIZE)
+        req_len = len(messages)
+        if req_len:
+            for i in range(req_len):
+                text = "<code>%s</code>\n%s" % (
+                    "Вы" if r.user == messages[i].from_user else "Тех. поддежрка", messages[i].text)
+                messages[i].is_read = True
+                messages[i].save()
+                if req_len == CHAT_PAGE_SIZE and req_len == i + 1:
+                    self.tb.send_message(self.chat, text,
+                                         reply_markup=generate_custom_keyboard(types.InlineKeyboardMarkup,
+                                                                               [[get_button_inline(
+                                                                                   "Следующие %s сообщений" % CHAT_PAGE_SIZE,
+                                                                                   "next_chat_page %s" % (page + 1))]]),
+                                         parse_mode='HTML')
+                else:
+                    self.tb.send_message(self.chat, text, parse_mode='HTML')
+        else:
+            self.tb.send_message(self.chat, "Отображены все сообщения")
+
+    def _confirm_end(self, user, request=None, message=None):
+        if request is None:
+            request = user.additional_data.get('chat')
+        r = Request.get(id=request)
+        if r.is_finished:
+            if message:
+                self.tb.edit_message_text(chat_id=self.chat, text="<code>Данная заявка уже решена.</code>",
+                                          message_id=message, parse_mode='HTML')
+        else:
+            self.tb.send_message(self.chat, "вы уверены, что данная заявка решена?",
+                                 reply_markup=generate_custom_keyboard(types.InlineKeyboardMarkup, [
+                                     [get_button_inline("Да", "request_solved_yes %s" % r.id),
+                                      get_button_inline("Нет", "request_solved_no %s" % r.id)]]))
+
+    def _end_request(self, event, custom_data=None):
+        user = User.get(id=self.user)
+        if custom_data is None:
+            message = event.kwargs.get('message')
+            request = Request.get(id=user.additional_data.get('chat'))
+        else:
+            message = custom_data.get('message')
+            request = Request.get(id=custom_data.get('request'))
+        request.is_finished = True
+        request.save()
+        self.tb.edit_message_text("Вы закрыли данную заявку.", chat_id=self.chat,
+                                  message_id=message)
+
+    def _keep_request(self, message):
+        self.tb.edit_message_text("Ваша заявка актуальна.", chat_id=self.chat,
+                                  message_id=message)

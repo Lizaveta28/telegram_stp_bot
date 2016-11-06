@@ -38,32 +38,24 @@ class Type(BaseModel):
     parent_type = ForeignKeyField('self', null=True, related_name='children')
 
 
-class RequestState(BaseModel):
-    name = TextField()
+class Stp(BaseModel):
+    staff_id = IntegerField(null=True)
+    user = ForeignKeyField(User)
+    is_active = BooleanField(default=True)
+    # current_requests = ManyToManyField(Request, related_name='current_requests')
 
 
 class Request(BaseModel):
     section = ForeignKeyField(Section)
     type = ForeignKeyField(Type)
     text = TextField(null=True)
-    state = ForeignKeyField(RequestState)
+    is_finished = BooleanField(default=False)
+    rating = IntegerField(null=True)
     user = ForeignKeyField(User)
+    stp = ForeignKeyField(Stp, null=True)
     unicode_icons = CharField(max_length=4)
     created_at = DateTimeField(default=datetime.datetime.now())
 
-
-class Chat(BaseModel):
-    user_from = IntegerField(null=True) # client
-    user_to = IntegerField(null=True) # stp, current active stp
-    request = ForeignKeyField(Request)
-    is_active = BooleanField(default=True)
-
-
-class Stp(BaseModel):
-    staff_id = IntegerField(null=True)
-    user = ForeignKeyField(User)
-    is_active = BooleanField(default=True)
-    # current_requests = ManyToManyField(Request, related_name='current_requests')
 
 
 class Message(BaseModel): # For show messages between stps and user
@@ -72,7 +64,7 @@ class Message(BaseModel): # For show messages between stps and user
     from_user = ForeignKeyField(User, related_name="msg_from_user", null=True)
     data = BlobField(null=True)
     text = TextField(null=True)
-    chat = ForeignKeyField(Chat)
+    request = ForeignKeyField(Request)
 
 
 class RequestComment(BaseModel):
@@ -84,7 +76,8 @@ class RequestComment(BaseModel):
 
 class StpRequest(BaseModel):
     request = ForeignKeyField(Request)
-    stp = ForeignKeyField(Stp)
+    stp = ForeignKeyField(Stp, null=True)
+    user = ForeignKeyField(User, null=True)
     comment = ForeignKeyField(RequestComment, null=True)
     add_text = TextField(null=True)
     is_dissmised = BooleanField(default=False)

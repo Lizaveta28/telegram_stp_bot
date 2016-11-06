@@ -1,4 +1,4 @@
-from models.models import Section, Type, RequestState
+from models.models import Section, Type
 
 
 def create_section_struct():
@@ -11,14 +11,3 @@ def create_section_struct():
     type1.save()
     type2 = Type(name="Не работает оплата на сайте", click_count=0, parent_type=type1, section=sec2)
     type2.save()
-
-
-def create_request_stage():
-    stage = RequestState(name="создана")
-    stage.save()
-    stage = RequestState(name="отложена")
-    stage.save()
-    stage = RequestState(name="результат не принят")
-    stage.save()
-    stage = RequestState(name="завершена")
-    stage.save()

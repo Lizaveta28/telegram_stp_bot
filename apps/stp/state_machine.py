@@ -1,6 +1,6 @@
 from transitions import Machine
 from config import PAGE_SIZE, IS_PROD, REQUEST_PAGE_SIZE
-from models.models import User, Section, Type, Request, Chat, RequestState, Stp, StpRequest, StpSection, Message
+from models.models import User, Section, Type, Request, Stp, StpRequest, StpSection, Message
 import ujson
 from apps.simple_user.utils import get_breadcrumb, emoji_pool
 import datetime
@@ -42,7 +42,7 @@ class StpStateMachine(object):
             'source': ('*'),
             'dest': 'stp_chatting',
             'prepare': [],
-            'conditions': [],
+            'conditions': ['_is_taken'],
             'before': ['_set_chat'],
             'after': ['_save_state']
         },
@@ -104,27 +104,39 @@ class StpStateMachine(object):
         if custom_data:
             user = custom_data.get('user', None)
             page = custom_data.get('page', 0)
+            stp_filter = custom_data.get('stp', None)
         else:
+            stp_filter = None
             user = event.kwargs.get('user')
             page = 0
         stp = Stp.get(Stp.user == user)
-        stp_sections = StpSection.select(StpSection.section).where(StpSection.stp == stp)
-        requests = Request.select().where(Request.section << stp_sections).offset(page * REQUEST_PAGE_SIZE).limit(
+        stp_sections = StpSection.select(StpSection.section).where(StpSection.stp == stp).where(Request.is_finished==False)
+        requests = Request.select().where(Request.section << stp_sections)
+        if stp_filter:
+            requests = requests.where(Request.stp==stp_filter)
+        else:
+            requests = requests.where(Request.stp == None)
+        requests = requests.offset(page * REQUEST_PAGE_SIZE).limit(
             REQUEST_PAGE_SIZE + 1)
         if not custom_data:
             self.tb.send_message(self.chat, "Заявки:", reply_markup=generate_custom_keyboard(types.ReplyKeyboardMarkup,
                                                                                              [[get_button(
                                                                                                  "В главное меню")]]))
         req_len = len(requests)
-        for i in range(req_len):
-            buttons = self.get_request_control_buttons(stp, requests[i].id)
-            if req_len == REQUEST_PAGE_SIZE + 1 and req_len == i + 1:
-                buttons.append([get_button_inline(text="Показать еще", data="stp_request_show %s" % (page + 1))])
-            self.print_request(requests[i], stp=stp, keyboard=generate_custom_keyboard(types.InlineKeyboardMarkup, buttons))
+        if req_len:
+            for i in range(req_len):
+                buttons = self.get_request_control_buttons(stp, requests[i].id)
+                if req_len == REQUEST_PAGE_SIZE + 1 and req_len == i + 1:
+                    buttons.append([get_button_inline(text="Показать еще", data="stp_request_show %s" % (page + 1))])
+                self.print_request(requests[i], stp=stp,
+                                   keyboard=generate_custom_keyboard(types.InlineKeyboardMarkup, buttons))
+        else:
+            self.tb.send_message(self.chat, "Нету доступных заявок.")
 
     def get_request_control_buttons(self, stp, request_id):
         buttons = []
-        if not StpRequest.select().where(StpRequest.stp == stp.id and StpRequest.request == request_id).count():
+        r = Request.get(id=request_id)
+        if not r.stp == stp:
             buttons.append([get_button_inline(text="Взять", data="stp_request_take %s" % request_id),
                             get_button_inline(text="Взять и начать чат",
                                               data="stp_request_take_and_chat %s" % request_id)])
@@ -137,21 +149,19 @@ class StpStateMachine(object):
         return buttons
 
     def print_request(self, request, keyboard, stp, reply=None):
+        stp = User.get(id=stp.user)
         self.tb.send_message(self.chat,
-                             "Заявка /r%s:\nНомер: %s\nНовых сообщений: <b>%s</b>\nКатегория: %s\nТип: %s\nКомментарий: %s\nСтатус: %s" % (
+                             "Заявка /r%s:\nНомер: %s\nНовых сообщений: <b>%s</b>\nКатегория: %s\nТип: %s\nКомментарий: %s" % (
                                  str(request.id) + ' ' + request.unicode_icons,
                                  request.id,
-                                 self.count_request_messages(request.id, stp),
+                                 self.count_request_messages(request, stp),
                                  get_breadcrumb(request.type.section.id, Section, 'parent_section'),
                                  get_breadcrumb(request.type.id, Type, 'parent_type'),
                                  request.text,
-                                 request.state.name
                              ), reply_markup=keyboard, parse_mode='HTML')
 
-    def count_request_messages(self, id, stp):
-        chats = Chat.select().where(Chat.request == id)
-        return Message.select().where(Message.chat << chats).where(Message.is_read == False).where(
-            Message.to_user == stp.id).count()
+    def count_request_messages(self, request, stp):
+        return Message.select().where(Message.request == request.id).where(Message.is_read == False).where(request.user==Message.from_user).count()
 
     def show_request(self, request_id, curr_user, reply=None):
         r = Request.get(id=request_id)
@@ -159,7 +169,7 @@ class StpStateMachine(object):
         stp = Stp.get(Stp.user == curr_user)
         stp_sections = StpSection.select(StpSection.section).where(StpSection.stp == stp)
         is_suitable = Request.select().where(Request.section == r.section).where(
-            Request.section << stp_sections).exists()
+            Request.section << stp_sections).where(Request.is_finished==False).exists()
         if is_suitable:
             buttons = self.get_request_control_buttons(stp, request_id)
         self.print_request(r, keyboard=generate_custom_keyboard(types.InlineKeyboardMarkup, buttons), stp=stp)
@@ -167,51 +177,57 @@ class StpStateMachine(object):
     def _set_chat(self, event):
         request = Request.get(id=event.kwargs.get('request'))
         user = event.kwargs.get("user")
+        message = event.kwargs.get("message")
         stp = Stp.get(user=user)
-        stp_request = StpRequest.get_or_create(request=request, stp=stp)
-        chat = Chat.get_or_create(request=request, user_to=None)[0]
-        chat.user_to = stp.id
-        chat.save()
-        user.additional_data['chat'] = chat.id
+        request.stp = stp
+        request.save()
+        user.additional_data['chat'] = request.id
         user.save()
-        keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, [[get_button("Отключиться от чата")]])
-        self.tb.send_message(self.chat,
-                             "Вы переключились в чат заявки /r%s %s\n, имя клиента: %s\nФамилия клиента: %s\n" % (
-                                 request.id, request.unicode_icons, request.user.first_name, request.user.surname),
-                             reply_markup=keyboard)
-        chats = Chat.select().where(Chat.request == request.id)
-        for message in Message.select().where(Message.chat << chats).where(Message.is_read == False).where(Message.to_user==stp.id):
-            message.is_read = True
-            message.save()
-            self.tb.send_message(self.chat, message.text)
+        keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, [[get_button("Показать историю чата")],
+                                                                        [get_button("Закрыть заявку")],
+                                                                        [get_button("Клиент в чате?")],
+                                                                        [get_button("Отключиться от заявки")],
+                                                                        [get_button("Отключиться от чата")]])
+        self.tb.edit_message_text(chat_id=self.chat,
+                             text="Вы переключились в чат заявки /r%s %s" % (request.id, request.unicode_icons), message_id=message)
+        self.tb.send_message(self.chat, "имя клиента: %s\nФамилия клиента: %s\n" % (request.user.first_name, request.user.surname), reply_markup=keyboard)
+        self._show_unread_messages(request)
 
+    def _is_taken(self, event):
+        request = Request.get(id=event.kwargs.get('request'))
+        stp = Stp.get(user=event.kwargs.get("user"))
+        if request.stp is None or request.stp==stp:
+            return True
+        else:
+            self.tb.send_message(self.chat, "Данная заявка уже взята.")
+            return False
 
     def send_to_chat_text(self, stp_user, message):
-        chat = Chat.get(id=stp_user.additional_data['chat'])
-        user = User.get(id=chat.user_from)
-        request = Request.get(id=chat.request)
-        if 'chat' in user.additional_data and chat.id == user.additional_data['chat']:
-            Message(is_read=True, from_user=stp_user, to_user=user, text=message.text, chat=chat).save()
+        r = Request.get(id=stp_user.additional_data['chat'])
+        user = User.get(id=r.user)
+        if 'chat' in user.additional_data and r.id == user.additional_data['chat']:
+            Message(is_read=True, from_user=stp_user, to_user=user, text=message.text, request=r).save()
             self.tb.send_message(user.telegram_chat_id, "%s" % message.text)
         else:
-            Message(is_read=False, from_user=stp_user, to_user=user, text=message.text, chat=chat).save()
+            Message(is_read=False, from_user=stp_user, to_user=user, text=message.text, request=r).save()
 
     def take_request(self, request, user, call):
         stp = Stp.get(user=user)
         request = Request.get(id=request)
-        stp_request, created = StpRequest.get_or_create(request=request, stp=stp)
-        if created:
+        if request.stp is None:
+            request.stp = stp
+            request.save()
             self.tb.edit_message_reply_markup(self.chat, message_id=call.message.message_id,
                                               reply_markup=generate_custom_keyboard(types.InlineKeyboardMarkup,
                                                                                     self.get_request_control_buttons(
                                                                                         stp, request.id)))
         else:
-            self.tb.send_message(self.chat, "Вы уже взяли заявку /r%s" % request.id)
+            self.tb.send_message(self.chat, "Вы уже взяли заявку, либо ее взял кто-то другой /r%s." % request.id)
 
     def _drop_request(self, event):
         r = Request.get(id=event.kwargs.get('request'))
         self.tb.send_message(self.chat,
-                             "Вы хотите отключиться от заявки /r%s\nВы уверены? Так же вы можете добавить комментарий" % r.id,
+                             "Вы хотите отключиться от заявки /r%s\nВы уверены? Так же вы можете добавить комментарий." % r.id,
                              reply_markup=generate_custom_keyboard(types.InlineKeyboardMarkup, buttons=[
                                  [get_button_inline("Да", 'stp_request_drop_yes %s' % r.id),
                                   get_button_inline("Нет", 'stp_request_drop_no %s' % r.id)],
@@ -220,22 +236,37 @@ class StpStateMachine(object):
 
     def drop_request_finally(self, message_id, request_id, user, decision, comment=None):
         if comment:
-            self.tb.send_message(self.chat, "Вы добавили комментарий к заявке")
-            request_id = user.additional_data['request']
-            self.tb.send_message(self.chat, "Вы отключились от заявки /r%s" % request_id)
+            self.tb.send_message(self.chat, "Вы добавили комментарий к заявке.(Пока не сохраняется в бд)")
+            request_id = user.additional_data.get('request')
+            r = Request.get(id=request_id)
+            r.stp = None
+            r.save()
+            self.tb.send_message(self.chat, "Вы отключились от заявки /r%s." % request_id)
         else:
             if decision == 0:
-                self.tb.edit_message_text("Вы остались подписаны на заявку /r%s" % request_id, chat_id=self.chat,
+                self.tb.edit_message_text("Вы остались подписаны на заявку /r%s." % request_id, chat_id=self.chat,
                                           message_id=message_id)
             else:
-                self.tb.edit_message_text("Вы отключились от заявки /r%s" % request_id, chat_id=self.chat,
+                r = Request.get(id=request_id)
+                r.stp = None
+                r.save()
+                self.tb.edit_message_text("Вы отключились от заявки /r%s." % request_id, chat_id=self.chat,
                                           message_id=message_id)
+
+    def _show_unread_messages(self, request):
+        messages = Message.select().where(Message.request == request.id).where(
+            Message.from_user == request.user).where(Message.is_read==False).order_by(Message.id)
+        for message in messages:
+            message.to_user = request.stp.user
+            message.is_read = True
+            message.save()
+            self.tb.send_message(self.chat, message.text)
 
     def _drop_request_comment(self, event):
         user = event.kwargs.get('user')
         user.additional_data['request'] = event.kwargs.get('request_id')
         user.save()
         self.tb.send_message(self.chat,
-                             'Укажите комментарий(причину)отключения от заявки, для отмены нажмите "В главное меню"',
+                             'Укажите комментарий(причину)отключения от заявки, для отмены нажмите "В главное меню".',
                              reply_markup=generate_custom_keyboard(types.ReplyKeyboardMarkup,
                                                                    [[get_button("В главное меню")]]))

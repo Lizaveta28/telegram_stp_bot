@@ -127,4 +127,40 @@ def send_to_chat(message, user, tb, sm):
 @is_user_active()
 def select_chat(call, user, tb, sm):
     chat = call.data.split(' ')[1]
-    sm.select_chat(user=user, chat=chat)
+    sm.select_chat(user=user, chat=chat, message=call.message.message_id)
+
+@is_user_active()
+def show_request_history(message, user, tb, sm):
+    request = user.additional_data.get('chat')
+    sm._show_request_history(request)
+
+@is_user_active()
+def show_request_history_next(call, user, tb, sm):
+    request = user.additional_data.get('chat')
+    page = call.data.split(' ')[1]
+    sm._show_request_history(request, int(page))
+
+@is_user_active()
+def confirm_end_request(message, user, tb, sm):
+    sm._confirm_end(user)
+
+@is_user_active()
+def end_request(call, user, tb, sm):
+    sm.end_request(message=call.message.message_id)
+    sm.main_menu()
+
+
+@is_user_active()
+def keep_request(call, user, tb, sm):
+    sm._keep_request(message=call.message.message_id)
+
+
+@is_user_active()
+def end_request_inline(call, user, tb, sm):
+    sm._end_request(None, custom_data={'message': call.message.message_id, 'request': int(call.data.split(' ')[1])})
+    sm.main_menu()
+
+
+@is_user_active()
+def confirm_end_request_inline(call, user, tb, sm):
+    sm._confirm_end(user, message=call.message.message_id, request=int(call.data.split(' ')[1]))

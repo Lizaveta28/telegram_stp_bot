@@ -1,4 +1,5 @@
 from apps.stp.decorators import is_stp_active
+from models.models import Stp
 
 
 @is_stp_active()
@@ -32,7 +33,7 @@ def print_request(message, user, tb, sm):
 @is_stp_active()
 def start_chat(call, user, tb, sm):
     data = call.data.split(' ')
-    sm.start_chat(request=int(data[1]), user=user)
+    sm.start_chat(request=int(data[1]), user=user, message=call.message.message_id)
 
 
 @is_stp_active()
@@ -66,3 +67,7 @@ def drop_request_comment(call, user, tb, sm):
 def drop_request_with_comment(message, user, tb, sm):
     sm.drop_request_finally(message, None, user, 1, comment=message.text)
     sm.main_menu()
+
+@is_stp_active()
+def show_active_requests(message, user, tb, sm):
+    sm._show_requests(None, custom_data={'user': user, 'page': 0, 'stp': Stp.get(user=user).id})
