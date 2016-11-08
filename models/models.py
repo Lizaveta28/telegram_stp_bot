@@ -1,8 +1,9 @@
 from peewee import *
 from playhouse.postgres_ext import JSONField, PostgresqlExtDatabase
-from playhouse.fields import ManyToManyField
 import datetime
 from config import host, db, user, password
+from apps.simple_user.utils import get_breadcrumb
+from flask_peewee.auth import BaseUser
 
 db = PostgresqlExtDatabase(db, user=user, password=password, host=host)
 
@@ -24,10 +25,17 @@ class User(BaseModel):
     is_active = BooleanField(default=True)
     has_messages_after_notification = BooleanField(default=False)
 
+    def __unicode__(self):
+        return "%s %s %s" % (self.username, self.first_name, self.surname)
+
+
 class Section(BaseModel):
     name = TextField()
     click_count = IntegerField(default=0)
     parent_section = ForeignKeyField('self', null=True, related_name='children')
+
+    def __unicode__(self):
+        return get_breadcrumb(self.id, Section, 'parent_section')
 
 
 class Type(BaseModel):
@@ -37,12 +45,19 @@ class Type(BaseModel):
     section = ForeignKeyField(Section, null=True)
     parent_type = ForeignKeyField('self', null=True, related_name='children')
 
+    def __unicode__(self):
+        return self.name
+
 
 class Stp(BaseModel):
     staff_id = IntegerField(null=True)
     user = ForeignKeyField(User)
     is_active = BooleanField(default=True)
+
     # current_requests = ManyToManyField(Request, related_name='current_requests')
+
+    def __unicode__(self):
+        return self.user.name
 
 
 class Request(BaseModel):
@@ -56,9 +71,11 @@ class Request(BaseModel):
     unicode_icons = CharField(max_length=4)
     created_at = DateTimeField(default=datetime.datetime.now())
 
+    def __unicode__(self):
+        return "%s %s" % (self.section.name, self.type.name)
 
 
-class Message(BaseModel): # For show messages between stps and user
+class Message(BaseModel):  # For show messages between stps and user
     is_read = BooleanField(default=False)
     to_user = ForeignKeyField(User, related_name="msg_to_user", null=True)
     from_user = ForeignKeyField(User, related_name="msg_from_user", null=True)
@@ -66,12 +83,18 @@ class Message(BaseModel): # For show messages between stps and user
     text = TextField(null=True)
     request = ForeignKeyField(Request)
 
+    def __unicode__(self):
+        return self.text
+
 
 class RequestComment(BaseModel):
     text = TextField(null=True)
     rating = FloatField(default=1)
     date_start = DateTimeField()
     date_finished = DateTimeField(datetime.datetime.now())
+
+    def __unicode__(self):
+        return self.text
 
 
 class StpRequest(BaseModel):
@@ -83,8 +106,23 @@ class StpRequest(BaseModel):
     is_dissmised = BooleanField(default=False)
     is_important = BooleanField(default=False)
 
+    def __unicode__(self):
+        return self.comment
+
 
 class StpSection(BaseModel):
     stp = ForeignKeyField(Stp)
     section = ForeignKeyField(Section)
-    importance = IntegerField(default=1) # more is more prior
+    importance = IntegerField(default=1)  # more is more prior
+
+
+class SiteUser(BaseModel, BaseUser):
+    username = CharField()
+    password = CharField()
+    email = CharField()
+    active = BooleanField(default=True)
+    # ... our custom fields ...
+    is_superuser = BooleanField()
+
+    def __unicode__(self):
+        return self.username

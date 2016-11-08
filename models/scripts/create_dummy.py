@@ -1,4 +1,4 @@
-from models.models import Section, Type
+from models.models import Section, Type, SiteUser
 
 
 def create_section_struct():
@@ -11,3 +11,7 @@ def create_section_struct():
     type1.save()
     type2 = Type(name="Не работает оплата на сайте", click_count=0, parent_type=type1, section=sec2)
     type2.save()
+
+    user = SiteUser(is_superuser=True, username='admin', email='test@test.com')
+    user.set_password('admin')
+    user.save()
