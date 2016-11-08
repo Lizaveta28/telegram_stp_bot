@@ -98,7 +98,8 @@ class StpStateMachine(object):
             user = User.get(id=self.user)
             user.state = self.state
             user.save()
-            self.tb.send_message(self.chat, "State: %s" % user.state)
+            if not config.IS_PROD:
+                self.tb.send_message(self.chat, "State: %s" % user.state)
 
     def _show_requests(self, event, custom_data=None):
         if custom_data:
@@ -164,15 +165,18 @@ class StpStateMachine(object):
         return Message.select().where(Message.request == request.id).where(Message.is_read == False).where(request.user.id==Message.from_user).count()
 
     def show_request(self, request_id, curr_user, reply=None):
-        r = Request.get(id=request_id)
-        buttons = []
-        stp = Stp.get(Stp.user == curr_user)
-        stp_sections = StpSection.select(StpSection.section).where(StpSection.stp == stp)
-        is_suitable = Request.select().where(Request.section == r.section).where(
-            Request.section << stp_sections).where(Request.is_finished==False).exists()
-        if is_suitable:
-            buttons = self.get_request_control_buttons(stp, request_id)
-        self.print_request(r, keyboard=generate_custom_keyboard(types.InlineKeyboardMarkup, buttons), stp=stp)
+        try:
+            r = Request.get(id=request_id)
+            buttons = []
+            stp = Stp.get(Stp.user == curr_user)
+            stp_sections = StpSection.select(StpSection.section).where(StpSection.stp == stp)
+            is_suitable = Request.select().where(Request.section == r.section).where(
+                Request.section << stp_sections).where(Request.is_finished==False).exists()
+            if is_suitable:
+                buttons = self.get_request_control_buttons(stp, request_id)
+            self.print_request(r, keyboard=generate_custom_keyboard(types.InlineKeyboardMarkup, buttons), stp=stp)
+        except:
+            self.tb.send_message(self.chat, "Данная заявка не найдена")
 
     def _set_chat(self, event):
         request = Request.get(id=event.kwargs.get('request'))

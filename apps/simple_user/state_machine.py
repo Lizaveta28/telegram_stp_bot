@@ -309,11 +309,14 @@ class UserStateMachine(object):
             self.print_request(request)
 
     def show_request(self, request_id, curr_user):
-        r = Request.get(id=request_id)
-        if r.user == curr_user:
-            self.print_request(r)
-        else:
-            self.tb.send_message(self.chat, "Это не ваша заявка!")
+        try:
+            r = Request.get(id=request_id)
+            if r.user == curr_user:
+                self.print_request(r)
+            else:
+                self.tb.send_message(self.chat, "Это не ваша заявка!")
+        except:
+            self.tb.send_message(self.chat, "Данная заявка не найдена")
 
     def print_request(self, request):
         if not request.is_finished:
