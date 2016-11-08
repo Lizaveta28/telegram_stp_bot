@@ -1,10 +1,11 @@
+import config
+
 class Configuration(object):
     DATABASE = {
-        'name': 'sdvor_stp',
-        'engine': 'peewee.SqliteDatabase',
-        'host': '10.0.16.101',
-        'password': '1111',
-        'user': 'bot',
+        'name': config.db,
+        'host': config.host,
+        'password': config.password,
+        'user': config.user,
         'engine': 'playhouse.postgres_ext.PostgresqlExtDatabase',
     }
     DEBUG = True
