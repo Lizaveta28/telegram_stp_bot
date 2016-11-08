@@ -1,0 +1,9 @@
+{% extends 'admin/model/list.html' %}
+{% block list_row_actions scoped %}
+{% for action in list_row_actions %}
+{{ action.render_ctx(get_pk_value(row), row) }}
+{% endfor %}
+{% if is_not_stp(get_pk_value(row)) %}
+    <a href="{{ url_for('promote_to_stp', user=get_pk_value(row)) }}">Сделать консьержем</a>
+{% endif %}
+{% endblock %}

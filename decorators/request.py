@@ -26,6 +26,8 @@ def request_process(**kwargs):
             except Exception as e:
                 user = User.create(username=args[0].from_user.username,
                                    telegram_chat_id=args[0].chat.id,
+                                   first_name=args[0].from_user.first_name,
+                                   surname=args[0].from_user.last_name,
                                    # phone=args[0].contact.phone_number,
                                    telegram_user_id=args[0].from_user.id
                                    )

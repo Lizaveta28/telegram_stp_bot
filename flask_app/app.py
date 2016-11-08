@@ -1,30 +1,61 @@
-from flask import Flask
-
-from flask_peewee.auth import Auth
-from flask_peewee.db import Database
-from models.models import User, Stp, Request, Message, Section, Type, RequestComment, StpRequest, StpSection, \
-    SiteUser
-from models.flask_models import UserShowAdmin, UserAdmin, CustomAuth, CustomAdmin, StpShowAdmin, RequestShowAdmin, \
-    MessageShowAdmin, StpSectionShowAdmin
+from flask import Flask, redirect, url_for, render_template
+from flask_admin import Admin
+import flask_admin as admin
+from flask import request
+from flask_login import LoginManager, login_user
+from models.models import User, Section, Type, Stp, StpSection, SiteUser
 
 app = Flask(__name__)
-app.config.from_object('flask_app.flask_config.Configuration')
-db = Database(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
+admin = Admin(app, name='СТП бот, административная панель', template_mode='bootstrap3')
+# Add administrative views here
+app.config['SECRET_KEY'] = 'Aogjaktsht%@%@%J@J=='
 
-# needed for authentication
-auth = CustomAuth(app, db)
-from flask_peewee.admin import Admin
 
-admin = CustomAdmin(app, auth)
-admin.register(SiteUser, UserAdmin)
-admin.register(User, UserShowAdmin)
-admin.register(Stp, StpShowAdmin)
-admin.register(Request, RequestShowAdmin)
-admin.register(Message, MessageShowAdmin)
-admin.register(Section)
-admin.register(Type)
-admin.register(StpSection, StpSectionShowAdmin)
-admin.setup()
+@login_manager.user_loader
+def load_user(user_id):
+    return SiteUser.get(id=user_id)
 
-if __name__ == "__main__":
-    app.run()
+
+@app.route("/promote_to_stp/<user>")
+def promote_to_stp(user):
+    user = User.get(id=user)
+    stp = Stp.get_or_create(user=user)[0]
+    stp.is_active = True
+    stp.save()
+    return redirect(url_for('stp.edit_view', id=stp.id))
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    # Here we use a class of some kind to represent and validate our
+    # client-side form data. For example, WTForms is a library that will
+    # handle this for us, and we use a custom LoginForm to validate.
+    if request.method == 'POST':
+        user = SiteUser.get(username=request.form.get('username'))
+        password = request.form.get('password')
+        if user.check_password(password):
+            login_user(user)
+
+            next = request.args.get('next')
+            # next_is_valid should check if the user has valid
+            # permission to access the `next` url
+
+            return redirect(next or url_for('admin.index'))
+    return render_template('login.html')
+
+
+if __name__ == '__main__':
+    from models.flask_models import UserAdmin, SectionAdmin, TypeAdmin, StpAdmin, StpSectionAdmin
+
+    admin.add_view(SectionAdmin(Section))
+    admin.add_view(TypeAdmin(Type))
+    admin.add_view(UserAdmin(User))
+    admin.add_view(StpAdmin(Stp))
+    admin.add_view(StpSectionAdmin(StpSection))
+    import logging
+    logging.basicConfig()
+    logging.getLogger().setLevel(logging.DEBUG)
+
+    app.run(debug=True)

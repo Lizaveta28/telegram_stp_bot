@@ -1,63 +1,162 @@
-from flask_peewee.admin import ModelAdmin
-from flask_peewee.auth import Auth
-from flask_peewee.admin import Admin
-from models.models import SiteUser
-from models.utils import get_user_exclude_fields
+from models.models import User, Section, Type, Stp
+from flask_admin.contrib.peewee import ModelView
+from flask_admin import expose
+import flask_login
+from peewee import JOIN, JOIN_LEFT_OUTER
+from flask import request, redirect, url_for
 
 
-# create a modeladmin for it
-class UserAdmin(ModelAdmin):
-    columns = ('username', 'email', 'is_superuser',)
+class PermissionView(ModelView):
 
-    # Make sure the user's password is hashed, after it's been changed in
-    # the admin interface. If we don't do this, the password will be saved
-    # in clear text inside the database and login will be impossible.
-    def save_model(self, instance, form, adding=False):
-        orig_password = instance.password
+    # def __init__(self, *args, **kwargs):
+    #     super(ModelView, self).__init__(*args, **kwargs)
 
-        user = super(UserAdmin, self).save_model(instance, form, adding)
+    def is_accessible(self):
+        return flask_login.current_user.is_authenticated
 
-        if orig_password != form.password.data:
-            user.set_password(form.password.data)
-            user.save()
-
-        return user
+    def inaccessible_callback(self, name, **kwargs):
+        # redirect to login page if user doesn't have access
+        return redirect(url_for('login', next=request.url))
 
 
-# subclass Auth so we can return our custom classes
-class CustomAuth(Auth):
-    def get_user_model(self):
-        return SiteUser
+class UserAdmin(PermissionView):
 
-    def get_model_admin(self):
-        return UserAdmin
+    def __init__(self, *args, **kwargs):
+        super(UserAdmin, self).__init__(*args, **kwargs)
+        self.name = 'Пользователи'
+
+    list_template = 'custom_user_list.html'
+    column_exclude_list = ['additional_data', 'telegram_chat_id', 'telegram_user_id',
+                             'has_messages_after_notification', 'state']
+    form_excluded_columns = ['additional_data', 'telegram_chat_id', 'telegram_user_id',
+                             'has_messages_after_notification', 'state', 'surname', 'username', 'first_name']
+    column_list = ['first_name', 'surname', 'username', 'phone', 'is_active', ]
+    column_labels = dict(username='Имя пользователя телеграм', first_name='Имя', phone='Телефон', is_active="Доступ к боту", surname="Фамилия")
+    column_searchable_list = (User.surname, User.username, User.first_name, User.phone)
+    column_filters = (User.is_active,)
+    form_args = {
+        'username': {
+            'label': 'Имя пользователя телеграм',
+        },
+        'first_name': {
+            'label': 'Имя',
+        },
+        'phone': {
+            'label': 'Телефон',
+        },
+        'is_active': {
+            'label': 'Доступ к боту',
+        },
+        'surname': {
+            'label': 'Фамилия',
+        },
+    }
+    can_create = False
+    can_edit = True
+    can_delete = False
+
+    @expose('/', methods=('GET', 'POST'))
+    def index_view(self):
+        def is_not_stp(id):
+            return Stp.select().where(Stp.user==id).where(Stp.is_active==True).count() == 0
+        self._template_args['is_not_stp'] = is_not_stp
+        self._actions
+        return super(UserAdmin, self).index_view()
 
 
-class CustomAdmin(Admin):
-    def check_user_permission(self, user):
-        return user.is_superuser
+class SectionAdmin(PermissionView):
+    def __init__(self, *args, **kwargs):
+        super(SectionAdmin, self).__init__(*args, **kwargs)
+        self.name = 'Разделы'
+
+    column_exclude_list = ['click_count']
+    form_excluded_columns = ['click_count']
+    name = 'test'
+    column_list = ['name', 'parent_section']
+    column_labels = dict(name='Название раздела', parent_section='Раздел-родитель')
+    can_create = True
+    can_edit = True
+    can_delete = True
+    form_args = {
+        'name': {
+            'label': 'Название раздела',
+        },
+        'parent_section': {
+            'label': 'Раздел-родитель',
+        },
+    }
 
 
-class UserShowAdmin(ModelAdmin):
-    columns = ('username', 'first_name', 'is_active', 'phone', 'surname',)
-    exclude = get_user_exclude_fields()
-    filter_exclude = get_user_exclude_fields()
+class TypeAdmin(PermissionView):
+    def __init__(self, *args, **kwargs):
+        super(TypeAdmin, self).__init__(*args, **kwargs)
+        self.name = 'Типы заявок'
+
+    column_exclude_list = ['click_count']
+    form_excluded_columns = ['click_count']
+    name = 'test'
+    column_list = ['name', 'parent_type', 'section', 'comment_required']
+    column_labels = dict(name='Название типа заявки', parent_type='Тип-родитель', section='Раздел',
+                         comment_required='Обязательный комментарий')
+    column_filters = (Type.comment_required,)
+    can_create = True
+    can_edit = True
+    can_delete = True
+    form_args = {
+        'name': {
+            'label': 'Название типа заявки',
+        },
+        'parent_type': {
+            'label': 'Тип-родитель',
+        },
+        'section': {
+            'label': 'Раздел',
+        },
+        'comment_required': {
+            'label': 'Обязательный комментарий',
+        },
+    }
 
 
-class StpShowAdmin(ModelAdmin):
-    filter_exclude = get_user_exclude_fields('user__')
+class StpAdmin(PermissionView):
+    def __init__(self, *args, **kwargs):
+        super(StpAdmin, self).__init__(*args, **kwargs)
+        self.name = 'Консьержи'
+
+    column_list = ['user', 'staff_id', 'is_active']
+    form_excluded_columns = ['user']
+    column_labels = dict(user='Пользователь', staff_id='Идентификатор внутри СД', is_active='Доступ к панели консьержа')
+    form_args = {
+        'is_active': {
+            'label': 'Доступ к панели консьержа',
+        },
+        'staff_id': {
+            'label': 'Идентификатор внутри СД',
+        }
+    }
+    can_create = False
+    can_edit = True
+    can_delete = False
 
 
-class RequestShowAdmin(ModelAdmin):
-    filter_exclude = get_user_exclude_fields('user__') + get_user_exclude_fields('stp__user__')
+class StpSectionAdmin(PermissionView):
+    def __init__(self, *args, **kwargs):
+        super(StpSectionAdmin, self).__init__(*args, **kwargs)
+        self.name = 'Разделы консьержей'
 
-
-class MessageShowAdmin(ModelAdmin):
-    columns = ('is_read', 'text', 'request', 'to_user', 'from_user')
-    filter_exclude = get_user_exclude_fields('to_user__') + get_user_exclude_fields(
-        'from_user__') + get_user_exclude_fields('request__user__') + get_user_exclude_fields(
-        'request__stp__user__') + get_user_exclude_fields('msg_from_user__') + get_user_exclude_fields('msg_to_user__')
-
-
-class StpSectionShowAdmin(ModelAdmin):
-    filter_exclude = get_user_exclude_fields('stp__user__')
+    column_list = ['stp', 'section', 'importance']
+    column_labels = dict(stp='Консьерж', section='Раздел', importance='Важность заявки из этого раздела')
+    can_create = True
+    can_edit = True
+    can_delete = True
+    form_args = {
+        'stp': {
+            'label': 'Консьерж',
+        },
+        'section': {
+            'label': 'Раздел',
+        },
+        'importance': {
+            'label': 'Важность заявки из этого раздела',
+        }
+    }

@@ -5,6 +5,7 @@ from config import host, db, user, password
 from apps.simple_user.utils import get_breadcrumb
 from flask_peewee.auth import BaseUser
 
+
 db = PostgresqlExtDatabase(db, user=user, password=password, host=host)
 
 
@@ -57,7 +58,7 @@ class Stp(BaseModel):
     # current_requests = ManyToManyField(Request, related_name='current_requests')
 
     def __unicode__(self):
-        return self.user.name
+        return self.user.__unicode__()
 
 
 class Request(BaseModel):
@@ -120,9 +121,14 @@ class SiteUser(BaseModel, BaseUser):
     username = CharField()
     password = CharField()
     email = CharField()
-    active = BooleanField(default=True)
+    is_active = BooleanField(default=True)
     # ... our custom fields ...
-    is_superuser = BooleanField()
+    is_superuser = BooleanField(default=True)
+    is_anonymous = BooleanField(default=False)
+    is_authenticated = BooleanField(default=True)
+
+    def get_id(self):
+        return self.id
 
     def __unicode__(self):
         return self.username

@@ -4,6 +4,8 @@ billiard==3.3.0.23
 celery==3.1.24
 click==6.6
 Flask==0.11.1
+Flask-Admin==1.4.2
+Flask-Login==0.4.0
 flask-peewee==0.6.7
 idna==2.1
 itsdangerous==0.24
