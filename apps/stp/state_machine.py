@@ -161,7 +161,7 @@ class StpStateMachine(object):
                              ), reply_markup=keyboard, parse_mode='HTML')
 
     def count_request_messages(self, request, stp):
-        return Message.select().where(Message.request == request.id).where(Message.is_read == False).where(request.user==Message.from_user).count()
+        return Message.select().where(Message.request == request.id).where(Message.is_read == False).where(request.user.id==Message.from_user).count()
 
     def show_request(self, request_id, curr_user, reply=None):
         r = Request.get(id=request_id)
@@ -183,9 +183,9 @@ class StpStateMachine(object):
         request.save()
         user.additional_data['chat'] = request.id
         user.save()
-        keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, [[get_button("Показать историю чата")],
-                                                                        [get_button("Закрыть заявку")],
-                                                                        [get_button("Клиент в чате?")],
+        keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, [# [get_button("Показать историю чата")],
+                                                                        # [get_button("Закрыть заявку")],
+                                                                        # [get_button("Клиент в чате?")],
                                                                         [get_button("Отключиться от заявки")],
                                                                         [get_button("Отключиться от чата")]])
         self.tb.edit_message_text(chat_id=self.chat,
