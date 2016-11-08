@@ -1,9 +1,10 @@
 from flask import Flask, redirect, url_for, render_template
 from flask_admin import Admin
-import flask_admin as admin
 from flask import request
 from flask_login import LoginManager, login_user
 from models.models import User, Section, Type, Stp, StpSection, SiteUser
+from models.flask_models import UserAdmin, SectionAdmin, TypeAdmin, StpAdmin, StpSectionAdmin
+
 
 app = Flask(__name__)
 login_manager = LoginManager()
@@ -11,7 +12,11 @@ login_manager.init_app(app)
 admin = Admin(app, name='СТП бот, административная панель', template_mode='bootstrap3')
 # Add administrative views here
 app.config['SECRET_KEY'] = 'Aogjaktsht%@%@%J@J=='
-
+admin.add_view(SectionAdmin(Section))
+admin.add_view(TypeAdmin(Type))
+admin.add_view(UserAdmin(User))
+admin.add_view(StpAdmin(Stp))
+admin.add_view(StpSectionAdmin(StpSection))
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -52,13 +57,6 @@ def login():
 
 
 if __name__ == '__main__':
-    from models.flask_models import UserAdmin, SectionAdmin, TypeAdmin, StpAdmin, StpSectionAdmin
-
-    admin.add_view(SectionAdmin(Section))
-    admin.add_view(TypeAdmin(Type))
-    admin.add_view(UserAdmin(User))
-    admin.add_view(StpAdmin(Stp))
-    admin.add_view(StpSectionAdmin(StpSection))
     import logging
     logging.basicConfig()
     logging.getLogger().setLevel(logging.DEBUG)
