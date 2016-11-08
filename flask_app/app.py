@@ -27,6 +27,11 @@ def promote_to_stp(user):
     return redirect(url_for('stp.edit_view', id=stp.id))
 
 
+@app.route("/")
+def index():
+    return render_template('login.html')
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     # Here we use a class of some kind to represent and validate our
