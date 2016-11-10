@@ -1,5 +1,5 @@
 from transitions import Machine
-from config import PAGE_SIZE, IS_PROD, REQUEST_PAGE_SIZE
+from config import PAGE_SIZE, IS_PROD, REQUEST_PAGE_SIZE, CHAT_PAGE_SIZE
 from models.models import User, Section, Type, Request, Stp, StpRequest, StpSection, Message
 import ujson
 from apps.simple_user.utils import get_breadcrumb, emoji_pool
@@ -111,10 +111,11 @@ class StpStateMachine(object):
             user = event.kwargs.get('user')
             page = 0
         stp = Stp.get(Stp.user == user)
-        stp_sections = StpSection.select(StpSection.section).where(StpSection.stp == stp).where(Request.is_finished==False)
+        stp_sections = StpSection.select(StpSection.section).where(StpSection.stp == stp).where(
+            Request.is_finished == False)
         requests = Request.select().where(Request.section << stp_sections)
         if stp_filter:
-            requests = requests.where(Request.stp==stp_filter)
+            requests = requests.where(Request.stp == stp_filter)
         else:
             requests = requests.where(Request.stp == None)
         requests = requests.offset(page * REQUEST_PAGE_SIZE).limit(
@@ -162,7 +163,8 @@ class StpStateMachine(object):
                              ), reply_markup=keyboard, parse_mode='HTML')
 
     def count_request_messages(self, request, stp):
-        return Message.select().where(Message.request == request.id).where(Message.is_read == False).where(request.user.id==Message.from_user).count()
+        return Message.select().where(Message.request == request.id).where(Message.is_read == False).where(
+            request.user.id == Message.from_user).count()
 
     def show_request(self, request_id, curr_user, reply=None):
         try:
@@ -171,7 +173,7 @@ class StpStateMachine(object):
             stp = Stp.get(Stp.user == curr_user)
             stp_sections = StpSection.select(StpSection.section).where(StpSection.stp == stp)
             is_suitable = Request.select().where(Request.section == r.section).where(
-                Request.section << stp_sections).where(Request.is_finished==False).exists()
+                Request.section << stp_sections).where(Request.is_finished == False).exists()
             if is_suitable:
                 buttons = self.get_request_control_buttons(stp, request_id)
             self.print_request(r, keyboard=generate_custom_keyboard(types.InlineKeyboardMarkup, buttons), stp=stp)
@@ -187,20 +189,23 @@ class StpStateMachine(object):
         request.save()
         user.additional_data['chat'] = request.id
         user.save()
-        keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, [# [get_button("Показать историю чата")],
+        keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, [[get_button("Показать историю чата")],
                                                                         # [get_button("Закрыть заявку")],
                                                                         # [get_button("Клиент в чате?")],
                                                                         [get_button("Отключиться от заявки")],
                                                                         [get_button("Отключиться от чата")]])
         self.tb.edit_message_text(chat_id=self.chat,
-                             text="Вы переключились в чат заявки /r%s %s" % (request.id, request.unicode_icons), message_id=message)
-        self.tb.send_message(self.chat, "имя клиента: %s\nФамилия клиента: %s\n" % (request.user.first_name, request.user.surname), reply_markup=keyboard)
+                                  text="Вы переключились в чат заявки /r%s %s" % (request.id, request.unicode_icons),
+                                  message_id=message)
+        self.tb.send_message(self.chat,
+                             "имя клиента: %s\nФамилия клиента: %s\n" % (request.user.first_name, request.user.surname),
+                             reply_markup=keyboard)
         self._show_unread_messages(request)
 
     def _is_taken(self, event):
         request = Request.get(id=event.kwargs.get('request'))
         stp = Stp.get(user=event.kwargs.get("user"))
-        if request.stp is None or request.stp==stp:
+        if request.stp is None or request.stp == stp:
             return True
         else:
             self.tb.send_message(self.chat, "Данная заявка уже взята.")
@@ -259,7 +264,7 @@ class StpStateMachine(object):
 
     def _show_unread_messages(self, request):
         messages = Message.select().where(Message.request == request.id).where(
-            Message.from_user == request.user).where(Message.is_read==False).order_by(Message.id)
+            Message.from_user == request.user).where(Message.is_read == False).order_by(Message.id)
         for message in messages:
             message.to_user = request.stp.user
             message.is_read = True
@@ -274,3 +279,28 @@ class StpStateMachine(object):
                              'Укажите комментарий(причину)отключения от заявки, для отмены нажмите "В главное меню".',
                              reply_markup=generate_custom_keyboard(types.ReplyKeyboardMarkup,
                                                                    [[get_button("В главное меню")]]))
+
+    def _show_request_history(self, request_id, page=0):
+        r = Request.get(id=request_id)
+        messages = Message.select().where(Message.request == request_id).offset(page * CHAT_PAGE_SIZE).limit(
+            CHAT_PAGE_SIZE)
+        req_len = len(messages)
+        stp_user = Stp.get(id=r.stp).user
+        if req_len:
+            for i in range(req_len):
+                text = "<code>%s</code>\n%s" % (
+                    "Клиент" if r.user == messages[i].from_user else (
+                    "Вы" if messages[i].from_user == stp_user else "Тех. поддержка"), messages[i].text)
+                messages[i].is_read = True
+                messages[i].save()
+                if req_len == CHAT_PAGE_SIZE and req_len == i + 1:
+                    self.tb.send_message(self.chat, text,
+                                         reply_markup=generate_custom_keyboard(types.InlineKeyboardMarkup,
+                                                                               [[get_button_inline(
+                                                                                   "Следующие %s сообщений" % CHAT_PAGE_SIZE,
+                                                                                   "next_chat_page %s" % (page + 1))]]),
+                                         parse_mode='HTML')
+                else:
+                    self.tb.send_message(self.chat, text, parse_mode='HTML')
+        else:
+            self.tb.send_message(self.chat, "Отображены все сообщения")

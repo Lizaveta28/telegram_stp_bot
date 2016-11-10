@@ -71,3 +71,15 @@ def drop_request_with_comment(message, user, tb, sm):
 @is_stp_active()
 def show_active_requests(message, user, tb, sm):
     sm._show_requests(None, custom_data={'user': user, 'page': 0, 'stp': Stp.get(user=user).id})
+
+@is_stp_active()
+def show_request_history(message, user, tb, sm):
+    request = user.additional_data.get('chat')
+    sm._show_request_history(request)
+
+
+@is_stp_active()
+def show_request_history_next(call, user, tb, sm):
+    request = user.additional_data.get('chat')
+    page = call.data.split(' ')[1]
+    sm._show_request_history(request, int(page))
