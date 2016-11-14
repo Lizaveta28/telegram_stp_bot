@@ -191,7 +191,7 @@ class StpStateMachine(object):
         user.save()
         keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, [[get_button("Показать историю чата")],
                                                                         # [get_button("Закрыть заявку")],
-                                                                        # [get_button("Клиент в чате?")],
+                                                                        [get_button("Клиент в чате?")],
                                                                         [get_button("Отключиться от заявки")],
                                                                         [get_button("Отключиться от чата")]])
         self.tb.edit_message_text(chat_id=self.chat,
@@ -304,3 +304,11 @@ class StpStateMachine(object):
                     self.tb.send_message(self.chat, text, parse_mode='HTML')
         else:
             self.tb.send_message(self.chat, "Отображены все сообщения")
+
+    def is_user_online(self, user):
+        chat = user.additional_data.get('chat')
+        r = Request.get(id=chat)
+        if r.user.additional_data.get('chat') == chat:
+            self.tb.send_message(self.chat, "<code>Пользователь сейчас в этом чате</code>", parse_mode='HTML')
+        else:
+            self.tb.send_message(self.chat, "<code>Пользователь не в данном чате</code>", parse_mode='HTML')

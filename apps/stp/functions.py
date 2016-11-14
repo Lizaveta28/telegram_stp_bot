@@ -83,3 +83,8 @@ def show_request_history_next(call, user, tb, sm):
     request = user.additional_data.get('chat')
     page = call.data.split(' ')[1]
     sm._show_request_history(request, int(page))
+
+
+@is_stp_active()
+def user_online(message, user, tb, sm):
+    sm.is_user_online(user)
