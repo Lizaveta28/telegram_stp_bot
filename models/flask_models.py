@@ -122,7 +122,7 @@ class StpAdmin(PermissionView):
     def __init__(self, *args, **kwargs):
         super(StpAdmin, self).__init__(*args, **kwargs)
         self.name = 'Консьержи'
-
+    list_template = 'custom_stp_list.html'
     column_list = ['user', 'staff_id', 'is_active']
     form_excluded_columns = ['user']
     column_labels = dict(user='Пользователь', staff_id='Идентификатор внутри СД', is_active='Доступ к панели консьержа')

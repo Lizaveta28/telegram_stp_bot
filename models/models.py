@@ -68,7 +68,7 @@ class Request(BaseModel):
     is_finished = BooleanField(default=False)
     rating = IntegerField(null=True)
     user = ForeignKeyField(User)
-    stp = ForeignKeyField(Stp, null=True)
+    stp = ForeignKeyField(Stp, null=True, on_delete='SET NULL')
     unicode_icons = CharField(max_length=4)
     created_at = DateTimeField(default=datetime.datetime.now())
 
@@ -100,7 +100,7 @@ class RequestComment(BaseModel):
 
 class StpRequest(BaseModel):
     request = ForeignKeyField(Request)
-    stp = ForeignKeyField(Stp, null=True)
+    stp = ForeignKeyField(Stp, null=True, on_delete='SET NULL')
     user = ForeignKeyField(User, null=True)
     comment = ForeignKeyField(RequestComment, null=True)
     add_text = TextField(null=True)
@@ -112,8 +112,8 @@ class StpRequest(BaseModel):
 
 
 class StpSection(BaseModel):
-    stp = ForeignKeyField(Stp)
-    section = ForeignKeyField(Section)
+    stp = ForeignKeyField(Stp, on_delete='CASCADE')
+    section = ForeignKeyField(Section, on_delete='CASCADE')
     importance = IntegerField(default=1)  # more is more prior
 
 

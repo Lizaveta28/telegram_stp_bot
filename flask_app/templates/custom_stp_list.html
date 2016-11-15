@@ -1,0 +1,7 @@
+{% extends 'admin/model/list.html' %}
+{% block list_row_actions scoped %}
+{% for action in list_row_actions %}
+{{ action.render_ctx(get_pk_value(row), row) }}
+{% endfor %}
+    <a href="{{ url_for('remove_from_stp', stp=get_pk_value(row)) }}">Удалить консьержа</a>
+{% endblock %}

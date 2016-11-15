@@ -48,6 +48,27 @@ def promote_to_stp(user):
     return redirect(url_for('stp.edit_view', id=stp.id))
 
 
+@app.route("/remove_from_stp/<stp>")
+def remove_from_stp(stp):
+    tb = telebot.TeleBot(config.token)
+
+    stp = Stp.get(id=stp)
+    user = stp.user
+    user.state = 'main_menu'
+    user.save()
+    stp.delete_instance()
+    try:
+        keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, buttons=[["Создать заявку"],
+                                                                                ["Мои заявки"],
+                                                                                # ["Мои завершенные запросы"]
+                                                                                ])
+        tb.send_message(user.telegram_chat_id, "Вы были переведены в раздел для обычных клиентов",
+                        reply_markup=keyboard)
+    except Exception as e:
+        print("Cant promote to stp, reason: %s" % e)
+    return redirect(url_for('stp.index_view'))
+
+
 @app.route("/")
 def index():
     return render_template('login.html')
