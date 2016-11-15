@@ -14,7 +14,7 @@ app.conf.update(
     CELERYBEAT_SCHEDULE={
         'save_page': {
             'task': 'tasks.check_messages',
-            'schedule': crontab(minute=0, hour=0)
+            'schedule': 60.0,
         }
     }
 )
