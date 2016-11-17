@@ -440,9 +440,9 @@ class UserStateMachine(object):
                                       message_id=message)
         user_stp = request.stp.user
         if from_stp:
-            self.tb.send_message(user_stp.telegram_chat_id, "Пользователь согласился закрыть заявку /r%s" % request.id)
+            self.tb.send_message(user_stp.telegram_chat_id, "Пользователь согласился закрыть заявку /r%s %s" % (request.id, request.unicode_icons))
         else:
-            self.tb.send_message(user_stp.telegram_chat_id, "Пользователь закрыл заявку /r%s" % request.id)
+            self.tb.send_message(user_stp.telegram_chat_id, "Пользователь закрыл заявку /r%s %s" % (request.id, request.unicode_icons))
         if user_stp.state == 'stp_chatting' and user_stp.additional_data.get('chat') == request.id:
             user_stp.state = 'stp_main_menu'
             user_stp.additional_data = {}
@@ -460,6 +460,6 @@ class UserStateMachine(object):
                 if user_stp.additional_data.get('chat', -1) == r.id:
                     self.tb.send_message(user_stp.telegram_chat_id, "Пользователь оставил активной заявку")
                 else:
-                    self.tb.send_message(user_stp.telegram_chat_id, "Пользователь оставил активной заявку /r%s" % r.id)
+                    self.tb.send_message(user_stp.telegram_chat_id, "Пользователь оставил активной заявку /r%s %s" % (r.id, r.unicode_icons))
         self.tb.edit_message_text("Ваша заявка актуальна.", chat_id=self.chat,
                                   message_id=message)
