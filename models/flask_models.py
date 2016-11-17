@@ -180,6 +180,7 @@ class RequestAdmin(PermissionView):
             'label': 'Завершена',
         }
     }
+    form_columns = ['is_finished', ]
     column_default_sort = ('created_at', True)
     column_filters = ('is_finished', )
     column_sortable_list = ('is_finished', )
