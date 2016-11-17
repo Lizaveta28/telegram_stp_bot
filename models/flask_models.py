@@ -1,4 +1,4 @@
-from models.models import User, Section, Type, Stp
+from models.models import User, Section, Type, Stp, Request
 from flask_admin.contrib.peewee import ModelView
 from flask_admin import expose
 import flask_login
@@ -160,3 +160,27 @@ class StpSectionAdmin(PermissionView):
             'label': 'Важность заявки из этого раздела',
         }
     }
+
+
+class RequestAdmin(PermissionView):
+    def __init__(self, *args, **kwargs):
+        super(RequestAdmin, self).__init__(*args, **kwargs)
+        self.name = "Заявки"
+
+    column_list = ['id', 'unicode_icons', 'user', 'stp',
+                   'is_finished', 'created_at', 'type', 'section', 'text']
+    can_create = False
+    can_delete = False
+    can_edit = True
+    column_labels = dict(id='Номер', unicode_icons='Иконка', user='Пользователь',
+                         stp='Консьерж', is_finished='Завершена', created_at='Создана',
+                         type='Тип', section='Раздел', text='Комментарий')
+    form_args = {
+        'is_finished': {
+            'label': 'Завершена',
+        }
+    }
+    column_default_sort = ('created_at', True)
+    column_filters = ('is_finished', )
+    column_sortable_list = ('is_finished', )
+    column_searchable_list = (Section.name, Type.name, )

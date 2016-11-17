@@ -2,8 +2,9 @@ from flask import Flask, redirect, url_for, render_template
 from flask_admin import Admin
 from flask import request
 from flask_login import LoginManager, login_user
-from models.models import User, Section, Type, Stp, StpSection, SiteUser
-from models.flask_models import UserAdmin, SectionAdmin, TypeAdmin, StpAdmin, StpSectionAdmin
+from models.models import User, Section, Type, Stp, StpSection, SiteUser, Request
+from models.flask_models import UserAdmin, SectionAdmin, TypeAdmin, StpAdmin, StpSectionAdmin, \
+    RequestAdmin
 import telebot
 import config
 from state_machines.utils import *
@@ -18,6 +19,7 @@ admin.add_view(SectionAdmin(Section))
 admin.add_view(TypeAdmin(Type))
 admin.add_view(UserAdmin(User))
 admin.add_view(StpAdmin(Stp))
+admin.add_view(RequestAdmin(Request))
 admin.add_view(StpSectionAdmin(StpSection))
 
 
