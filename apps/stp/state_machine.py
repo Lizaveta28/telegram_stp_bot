@@ -190,7 +190,7 @@ class StpStateMachine(object):
         user.additional_data['chat'] = request.id
         user.save()
         keyboard = generate_custom_keyboard(types.ReplyKeyboardMarkup, [[get_button("Показать историю чата")],
-                                                                        # [get_button("Закрыть заявку")],
+                                                                        [get_button("Закрыть заявку")],
                                                                         [get_button("Клиент в чате?")],
                                                                         [get_button("Отключиться от заявки")],
                                                                         [get_button("Отключиться от чата")]])
@@ -290,7 +290,7 @@ class StpStateMachine(object):
             for i in range(req_len):
                 text = "<code>%s</code>\n%s" % (
                     "Клиент" if r.user == messages[i].from_user else (
-                    "Вы" if messages[i].from_user == stp_user else "Тех. поддержка"), messages[i].text)
+                        "Вы" if messages[i].from_user == stp_user else "Тех. поддержка"), messages[i].text)
                 messages[i].is_read = True
                 messages[i].save()
                 if req_len == CHAT_PAGE_SIZE and req_len == i + 1:
@@ -312,3 +312,18 @@ class StpStateMachine(object):
             self.tb.send_message(self.chat, "<code>Пользователь сейчас в этом чате</code>", parse_mode='HTML')
         else:
             self.tb.send_message(self.chat, "<code>Пользователь не в данном чате</code>", parse_mode='HTML')
+
+    def _send_close_request(self, user):
+        r = Request.get(id=user.additional_data.get('chat'))
+        user_to_reiceve = r.user
+        keyboard = generate_custom_keyboard(types.InlineKeyboardMarkup, [
+            [get_button_inline("Да", "request_close_accept %s" % r.id),
+             get_button_inline("Нет", "request_close_decline %s" % r.id)]])
+        self.tb.send_message(user_to_reiceve.telegram_chat_id,
+                             "Тех. поддержка посчитала, что заявка /r%s:\nНомер: %s\nКатегория: %s\nТип: %s\nКомментарий: %s\nЗавершена, Вы согласны?" % (
+                                 str(r.id) + ' ' + r.unicode_icons,
+                                 r.id,
+                                 get_breadcrumb(r.type.section.id, Section, 'parent_section'),
+                                 get_breadcrumb(r.type.id, Type, 'parent_type'),
+                                 r.text,
+                             ), reply_markup=keyboard, parse_mode='HTML')

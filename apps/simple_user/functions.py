@@ -129,10 +129,12 @@ def select_chat(call, user, tb, sm):
     chat = call.data.split(' ')[1]
     sm.select_chat(user=user, chat=chat, message=call.message.message_id)
 
+
 @is_user_active()
 def show_request_history(message, user, tb, sm):
     request = user.additional_data.get('chat')
     sm._show_request_history(request)
+
 
 @is_user_active()
 def show_request_history_next(call, user, tb, sm):
@@ -140,9 +142,11 @@ def show_request_history_next(call, user, tb, sm):
     page = call.data.split(' ')[1]
     sm._show_request_history(request, int(page))
 
+
 @is_user_active()
 def confirm_end_request(message, user, tb, sm):
     sm._confirm_end(user)
+
 
 @is_user_active()
 def end_request(call, user, tb, sm):
@@ -152,13 +156,23 @@ def end_request(call, user, tb, sm):
 
 @is_user_active()
 def keep_request(call, user, tb, sm):
-    sm._keep_request(message=call.message.message_id)
+    from_stp = False if call.data.split(' ')[0] != 'request_close_decline' else True
+    try:
+        request = int(call.data.split(' ')[1])
+    except:
+        request = None
+    sm._keep_request(message=call.message.message_id, request=request, from_stp=from_stp)
 
 
 @is_user_active()
 def end_request_inline(call, user, tb, sm):
-    sm._end_request(None, custom_data={'message': call.message.message_id, 'request': int(call.data.split(' ')[1])})
-    sm.main_menu()
+    from_stp = False
+    if call.data.split(' ')[0] == 'request_close_accept':
+        from_stp = True
+    sm._end_request(None, custom_data={'message': call.message.message_id, 'request': int(call.data.split(' ')[1]),
+                                       'from_stp': from_stp})
+    if user.additional_data.get('chat', -1) == int(call.data.split(' ')[1]):
+        sm.main_menu()
 
 
 @is_user_active()

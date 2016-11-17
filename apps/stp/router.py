@@ -1,7 +1,7 @@
 from apps.stp.functions import initial, to_main_menu, show_requests_list, show_requests_list_next, \
     print_request, start_chat, send_to_chat_text, take_request, drop_request, drop_request_choice, \
     drop_request_comment, drop_request_with_comment, show_active_requests, show_request_history, \
-    show_request_history_next, user_online
+    show_request_history_next, user_online, send_close_request
 
 
 class Router:
@@ -26,6 +26,8 @@ class Router:
                 show_request_history(message, user, tb)
             elif message.text == 'Клиент в чате?':
                 user_online(message, user, tb)
+            elif message.text == 'Закрыть заявку':
+                send_close_request(message, user, tb)
             else:
                 send_to_chat_text(message, user, tb)
 

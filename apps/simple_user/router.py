@@ -31,6 +31,10 @@ class Router:
 
     @staticmethod
     def route_inline(call, user, tb):
+        if call.data.startswith('request_close_accept'):
+            end_request_inline(call, user, tb)
+        elif call.data.startswith('request_close_decline'):
+            keep_request(call, user, tb)
         if call.data.startswith('start_chat'):
             select_chat(call, user, tb)
         elif call.data.startswith('show_requests'):

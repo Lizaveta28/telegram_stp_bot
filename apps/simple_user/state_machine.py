@@ -113,7 +113,8 @@ class UserStateMachine(object):
         r = Request.get(id=event.kwargs.get('chat'))
         message = message = event.kwargs.get('message')
         if r.is_finished:
-            self.tb.edit_message_text(chat_id=self.chat, text="<code>Данная заявка уже решена.</code>", message_id=message, parse_mode='HTML')
+            self.tb.edit_message_text(chat_id=self.chat, text="<code>Данная заявка уже решена.</code>",
+                                      message_id=message, parse_mode='HTML')
             return False
         else:
             return True
@@ -321,8 +322,8 @@ class UserStateMachine(object):
     def print_request(self, request):
         if not request.is_finished:
             keyboard = generate_custom_keyboard(types.InlineKeyboardMarkup, [
-                    [get_button_inline("Перейти в чат", 'start_chat %s' % request.id)],
-                    [get_button_inline("Заявка решена", "change_request_status %s" % request.id)]])
+                [get_button_inline("Перейти в чат", 'start_chat %s' % request.id)],
+                [get_button_inline("Заявка решена", "change_request_status %s" % request.id)]])
         else:
             keyboard = None
         self.tb.send_message(self.chat,
@@ -422,16 +423,43 @@ class UserStateMachine(object):
     def _end_request(self, event, custom_data=None):
         user = User.get(id=self.user)
         if custom_data is None:
+            from_stp = event.kwargs.get('from_stp', False)
             message = event.kwargs.get('message')
             request = Request.get(id=user.additional_data.get('chat'))
         else:
+            from_stp = custom_data.get('from_stp', False)
             message = custom_data.get('message')
             request = Request.get(id=custom_data.get('request'))
         request.is_finished = True
         request.save()
-        self.tb.edit_message_text("Вы закрыли данную заявку.", chat_id=self.chat,
-                                  message_id=message)
+        if from_stp:
+            self.tb.edit_message_text("Вы согласились закрыть заявку.", chat_id=self.chat,
+                                      message_id=message)
+        else:
+            self.tb.edit_message_text("Вы закрыли данную заявку.", chat_id=self.chat,
+                                      message_id=message)
+        user_stp = request.stp.user
+        if from_stp:
+            self.tb.send_message(user_stp.telegram_chat_id, "Пользователь согласился закрыть заявку /r%s" % request.id)
+        else:
+            self.tb.send_message(user_stp.telegram_chat_id, "Пользователь закрыл заявку /r%s" % request.id)
+        if user_stp.state == 'stp_chatting' and user_stp.additional_data.get('chat') == request.id:
+            user_stp.state = 'stp_main_menu'
+            user_stp.additional_data = {}
+            user_stp.save()
+            self.tb.send_message(user_stp.telegram_chat_id, "Сейчас вы будете переведены в главное меню",
+                                 reply_markup=generate_custom_keyboard(types.ReplyKeyboardMarkup,
+                                                                       [[get_button("Список запросов")],
+                                                                        [get_button("Мои активные запросы")]]))
 
-    def _keep_request(self, message):
+    def _keep_request(self, message, request=None, from_stp=False):
+        if request and from_stp:
+            r = Request.get(id=request)
+            if r.stp is not None:
+                user_stp = r.stp.user
+                if user_stp.additional_data.get('chat', -1) == r.id:
+                    self.tb.send_message(user_stp.telegram_chat_id, "Пользователь оставил активной заявку")
+                else:
+                    self.tb.send_message(user_stp.telegram_chat_id, "Пользователь оставил активной заявку /r%s" % r.id)
         self.tb.edit_message_text("Ваша заявка актуальна.", chat_id=self.chat,
                                   message_id=message)

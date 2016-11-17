@@ -88,3 +88,8 @@ def show_request_history_next(call, user, tb, sm):
 @is_stp_active()
 def user_online(message, user, tb, sm):
     sm.is_user_online(user)
+
+
+@is_stp_active()
+def send_close_request(message, user, tb, sm):
+    sm._send_close_request(user)
